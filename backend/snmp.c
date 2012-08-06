@@ -1,5 +1,5 @@
 /*
- * "$Id: snmp.c 10208 2012-01-30 22:02:05Z mike $"
+ * "$Id: snmp.c 10535 2012-06-22 03:45:53Z mike $"
  *
  *   SNMP discovery backend for CUPS.
  *
@@ -251,7 +251,7 @@ main(int  argc,				/* I - Number of command-line arguments (6 or 7) */
 
 #ifdef AF_INET6
   if ((ipv6 = _cupsSNMPOpen(AF_INET6)) < 0)
-    return (1);
+    perror("DEBUG: Unable to create IPv6 socket");
 #else
   ipv6 = -1;
 #endif /* AF_INET6 */
@@ -1383,5 +1383,5 @@ update_cache(snmp_cache_t *device,	/* I - Device */
 
 
 /*
- * End of "$Id: snmp.c 10208 2012-01-30 22:02:05Z mike $".
+ * End of "$Id: snmp.c 10535 2012-06-22 03:45:53Z mike $".
  */

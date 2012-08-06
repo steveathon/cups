@@ -1,5 +1,5 @@
 #
-# "$Id: cups.spec.in 10517 2012-05-25 03:25:32Z mike $"
+# "$Id: cups.spec.in 10558 2012-07-27 20:33:27Z mike $"
 #
 #   RPM "spec" file for CUPS.
 #
@@ -25,7 +25,7 @@
 %{?_with_dbus: %define _dbus --enable-dbus}
 %{!?_with_dbus: %define _dbus --disable-dbus}
 
-%{!?_with_dnssd: %{!?_without_dnssd: %define _without_dnssd --without-dnssd}}
+%{!?_with_dnssd: %{!?_without_dnssd: %define _with_dnssd --with-dnssd}}
 %{?_with_dnssd: %define _dnssd --enable-dnssd}
 %{!?_with_dnssd: %define _dnssd --disable-dnssd}
 
@@ -179,6 +179,7 @@ rm -rf $RPM_BUILD_ROOT
 %dir /usr/lib/cups
 %dir /usr/lib/cups/backend
 %if %{?_with_dnssd:1}%{!?_with_dnssd:0}
+# DNS-SD
 /usr/lib/cups/backend/dnssd
 %endif
 /usr/lib/cups/backend/http
@@ -241,6 +242,20 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/doc/cups/help/whatsnew.html
 %dir /usr/share/doc/cups/images
 /usr/share/doc/cups/images/*
+
+%dir /usr/share/doc/cups/ca
+/usr/share/doc/cups/ca/*
+%dir /usr/share/doc/cups/es
+/usr/share/doc/cups/es/*
+%dir /usr/share/doc/cups/ja
+/usr/share/doc/cups/ja/*
+
+%dir /usr/share/locale/ca
+/usr/share/locale/ca/cups_ca.po
+%dir /usr/share/locale/es
+/usr/share/locale/es/cups_es.po
+%dir /usr/share/locale/ja
+/usr/share/locale/ja/cups_ja.po
 
 %dir /usr/share/man/man1
 /usr/share/man/man1/cancel.1.gz
@@ -334,5 +349,5 @@ rm -rf $RPM_BUILD_ROOT
 
 
 #
-# End of "$Id: cups.spec.in 10517 2012-05-25 03:25:32Z mike $".
+# End of "$Id: cups.spec.in 10558 2012-07-27 20:33:27Z mike $".
 #

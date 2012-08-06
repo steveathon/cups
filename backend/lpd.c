@@ -1,5 +1,5 @@
 /*
- * "$Id: lpd.c 10431 2012-04-23 19:19:19Z mike $"
+ * "$Id: lpd.c 10520 2012-05-31 02:53:59Z mike $"
  *
  *   Line Printer Daemon backend for CUPS.
  *
@@ -936,7 +936,7 @@ lpd_queue(const char      *hostname,	/* I - Host to connect to */
       return (CUPS_BACKEND_FAILED);
     }
 
-    if (orighost)
+    if (orighost && _cups_strcasecmp(orighost, "localhost"))
       strlcpy(localhost, orighost, sizeof(localhost));
     else
       httpGetHostname(NULL, localhost, sizeof(localhost));
@@ -1314,5 +1314,5 @@ sigterm_handler(int sig)		/* I - Signal */
 
 
 /*
- * End of "$Id: lpd.c 10431 2012-04-23 19:19:19Z mike $".
+ * End of "$Id: lpd.c 10520 2012-05-31 02:53:59Z mike $".
  */

@@ -1,5 +1,5 @@
 /*
- * "$Id: language.c 10506 2012-05-23 20:17:12Z mike $"
+ * "$Id: language.c 10530 2012-06-22 02:25:46Z mike $"
  *
  *   I18N/language support for CUPS.
  *
@@ -788,7 +788,7 @@ _cupsLangString(cups_lang_t *lang,	/* I - Language */
   * Range check input...
   */
 
-  if (!lang || !message)
+  if (!lang || !message || !*message)
     return (message);
 
   _cupsMutexLock(&lang_mutex);
@@ -1563,5 +1563,5 @@ cups_unquote(char       *d,		/* O - Unquoted string */
 
 
 /*
- * End of "$Id: language.c 10506 2012-05-23 20:17:12Z mike $".
+ * End of "$Id: language.c 10530 2012-06-22 02:25:46Z mike $".
  */

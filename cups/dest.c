@@ -1,5 +1,5 @@
 /*
- * "$Id: dest.c 10470 2012-05-16 22:33:31Z mike $"
+ * "$Id: dest.c 10555 2012-07-27 18:01:06Z mike $"
  *
  *   User-defined destination (and option) support for CUPS.
  *
@@ -2679,8 +2679,10 @@ cups_dnssd_browse_cb(
     AvahiLookupResultFlags flags,	/* I - Flags */
     void                   *context)	/* I - Devices array */
 {
+#ifdef DEBUG
   AvahiClient		*client = avahi_service_browser_get_client(browser);
 					/* Client information */
+#endif /* DEBUG */
   _cups_dnssd_data_t	*data = (_cups_dnssd_data_t *)context;
 					/* Enumeration data */
 
@@ -3064,8 +3066,10 @@ cups_dnssd_query_cb(
     AvahiLookupResultFlags flags,	/* I - Flags */
     void                   *context)	/* I - Enumeration data */
 {
+#    ifdef DEBUG
   AvahiClient		*client = avahi_record_browser_get_client(browser);
 					/* Client information */
+#    endif /* DEBUG */
 #  endif /* HAVE_DNSSD */
   _cups_dnssd_data_t	*data = (_cups_dnssd_data_t *)context;
 					/* Enumeration data */
@@ -3900,5 +3904,5 @@ cups_make_string(
 
 
 /*
- * End of "$Id: dest.c 10470 2012-05-16 22:33:31Z mike $".
+ * End of "$Id: dest.c 10555 2012-07-27 18:01:06Z mike $".
  */
