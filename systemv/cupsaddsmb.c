@@ -1,5 +1,5 @@
 /*
- * "$Id: cupsaddsmb.c 10431 2012-04-23 19:19:19Z mike $"
+ * "$Id: cupsaddsmb.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   "cupsaddsmb" command for CUPS.
  *
@@ -295,5 +295,5 @@ usage(void)
 
 
 /*
- * End of "$Id: cupsaddsmb.c 10431 2012-04-23 19:19:19Z mike $".
+ * End of "$Id: cupsaddsmb.c 10996 2013-05-29 11:51:34Z msweet $".
  */

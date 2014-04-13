@@ -1,5 +1,5 @@
 dnl
-dnl "$Id: cups-manpages.m4 10424 2012-04-23 17:26:57Z mike $"
+dnl "$Id: cups-manpages.m4 6649 2007-07-11 21:46:42Z mike $"
 dnl
 dnl   Manpage stuff for CUPS.
 dnl
@@ -28,12 +28,6 @@ if test "$mandir" = "\${prefix}/man" -a "$prefix" = "/"; then
         		AMANDIR="/usr/share/man"
         		PMANDIR="/usr/share/man"
         		;;
-        	IRIX)
-        		# SGI IRIX
-        		mandir="/usr/share/catman/u_man"
-        		AMANDIR="/usr/share/catman/a_man"
-        		PMANDIR="/usr/share/catman/p_man"
-        		;;
         	*)
         		# All others
         		mandir="/usr/man"
@@ -51,14 +45,6 @@ AC_SUBST(PMANDIR)
 
 dnl Setup manpage extensions...
 case "$uname" in
-	IRIX*)
-		# SGI IRIX
-		MAN1EXT=1
-		MAN5EXT=5
-		MAN7EXT=7
-		MAN8EXT=1m
-		MAN8DIR=1
-		;;
 	SunOS* | HP-UX*)
 		# Solaris and HP-UX
 		MAN1EXT=1
@@ -92,5 +78,5 @@ AC_SUBST(MAN8EXT)
 AC_SUBST(MAN8DIR)
 
 dnl
-dnl End of "$Id: cups-manpages.m4 10424 2012-04-23 17:26:57Z mike $".
+dnl End of "$Id: cups-manpages.m4 6649 2007-07-11 21:46:42Z mike $".
 dnl

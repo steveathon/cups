@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc-import.cxx 9793 2011-05-20 03:49:49Z mike $"
+// "$Id: ppdc-import.cxx 3275 2011-05-20 07:26:13Z msweet $"
 //
 //   PPD file import methods for the CUPS PPD Compiler.
 //
@@ -339,5 +339,5 @@ ppdcSource::import_ppd(const char *f)	// I - Filename
 
 
 //
-// End of "$Id: ppdc-import.cxx 9793 2011-05-20 03:49:49Z mike $".
+// End of "$Id: ppdc-import.cxx 3275 2011-05-20 07:26:13Z msweet $".
 //

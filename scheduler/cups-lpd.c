@@ -1,27 +1,16 @@
 /*
- * "$Id: cups-lpd.c 10524 2012-06-20 15:13:33Z mike $"
+ * "$Id: cups-lpd.c 11623 2014-02-19 20:18:10Z msweet $"
  *
- *   Line Printer Daemon interface for CUPS.
+ * Line Printer Daemon interface for CUPS.
  *
- *   Copyright 2007-2012 by Apple Inc.
- *   Copyright 1997-2006 by Easy Software Products, all rights reserved.
+ * Copyright 2007-2014 by Apple Inc.
+ * Copyright 1997-2006 by Easy Software Products, all rights reserved.
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- * Contents:
- *
- *   main()           - Process an incoming LPD request...
- *   create_job()     - Create a new print job.
- *   get_printer()    - Get the named printer and its options.
- *   print_file()     - Add a file to the current job.
- *   recv_print_job() - Receive a print job from the client.
- *   remove_jobs()    - Cancel one or more jobs.
- *   send_state()     - Send the queue state.
- *   smart_gets()     - Get a line of text, removing the trailing CR and/or LF.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * file is missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -184,7 +173,7 @@ main(int  argc,				/* I - Number of command-line arguments */
   if (getpeername(0, (struct sockaddr *)&hostaddr, &hostlen))
   {
     syslog(LOG_WARNING, "Unable to get client address - %s", strerror(errno));
-    strcpy(hostname, "unknown");
+    strlcpy(hostname, "unknown", sizeof(hostname));
   }
   else
   {
@@ -781,7 +770,8 @@ recv_print_job(
   int		fd;			/* Temporary file */
   FILE		*fp;			/* File pointer */
   char		filename[1024];		/* Temporary filename */
-  int		bytes;			/* Bytes received */
+  ssize_t	bytes;			/* Bytes received */
+  size_t	total;			/* Total bytes */
   char		line[256],		/* Line from file/stdin */
 		command,		/* Command from line */
 		*count,			/* Number of bytes */
@@ -914,7 +904,7 @@ recv_print_job(
 	      break;
 	    }
 
-	    strcpy(filename, control);
+	    strlcpy(filename, control, sizeof(filename));
 	  }
 	  break;
 
@@ -950,7 +940,7 @@ recv_print_job(
 	    break;
 	  }
 
-	  strcpy(filename, temp[num_data]);
+	  strlcpy(filename, temp[num_data], sizeof(filename));
 
           num_data ++;
 	  break;
@@ -965,15 +955,15 @@ recv_print_job(
     * Copy the data or control file from the client...
     */
 
-    for (i = atoi(count); i > 0; i -= bytes)
+    for (total = (size_t)strtoll(count, NULL, 10); total > 0; total -= (size_t)bytes)
     {
-      if (i > sizeof(line))
-        bytes = sizeof(line);
+      if (total > sizeof(line))
+        bytes = (ssize_t)sizeof(line);
       else
-        bytes = i;
+        bytes = (ssize_t)total;
 
-      if ((bytes = fread(line, 1, bytes, stdin)) > 0)
-        bytes = write(fd, line, bytes);
+      if ((bytes = (ssize_t)fread(line, 1, (size_t)bytes, stdin)) > 0)
+        bytes = write(fd, line, (size_t)bytes);
 
       if (bytes < 1)
       {
@@ -1116,7 +1106,7 @@ recv_print_job(
       {
 	syslog(LOG_WARNING, "No username specified by client! "
 		            "Using \"anonymous\"...");
-	strcpy(user, "anonymous");
+	strlcpy(user, "anonymous", sizeof(user));
       }
 
      /*
@@ -1528,7 +1518,7 @@ send_state(const char *queue,		/* I - Destination */
     */
 
     if (jobstate == IPP_JOB_PROCESSING)
-      strcpy(rankstr, "active");
+      strlcpy(rankstr, "active", sizeof(rankstr));
     else
     {
       snprintf(rankstr, sizeof(rankstr), "%d%s", rank, ranks[rank % 10]);
@@ -1622,5 +1612,5 @@ smart_gets(char *s,			/* I - Pointer to line buffer */
 
 
 /*
- * End of "$Id: cups-lpd.c 10524 2012-06-20 15:13:33Z mike $".
+ * End of "$Id: cups-lpd.c 11623 2014-02-19 20:18:10Z msweet $".
  */

@@ -1,9 +1,9 @@
 .\"
-.\" "$Id: cancel.man 10424 2012-04-23 17:26:57Z mike $"
+.\" "$Id: cancel.man 11022 2013-06-06 22:14:09Z msweet $"
 .\"
 .\"   cancel man page for CUPS.
 .\"
-.\"   Copyright 2007-2012 by Apple Inc.
+.\"   Copyright 2007-2013 by Apple Inc.
 .\"   Copyright 1997-2006 by Easy Software Products.
 .\"
 .\"   These coded instructions, statements, and computer programs are the
@@ -12,7 +12,7 @@
 .\"   which should have been included with this file.  If this file is
 .\"   file is missing or damaged, see the license at "http://www.cups.org/".
 .\"
-.TH cancel 1 "CUPS" "20 March 2006" "Apple Inc."
+.TH cancel 1 "CUPS" "21 January 2013" "Apple Inc."
 .SH NAME
 cancel - cancel jobs
 .SH SYNOPSIS
@@ -23,7 +23,7 @@ cancel - cancel jobs
 .I hostname[:port]
 ] [ -u
 .I username
-] [
+] [ -x ] [
 .I id
 ] [
 .I destination
@@ -56,6 +56,10 @@ Chooses an alternate server.
 -u username
 .br
 Cancels jobs owned by \fIusername\fR.
+.TP 5
+-x
+.br
+Deletes job data files in addition to canceling.
 .SH COMPATIBILITY
 Unlike the System V printing system, CUPS allows printer names to
 contain any printable character except SPACE, TAB, "/", or "#".
@@ -69,7 +73,7 @@ Cancel-Jobs operations in \fIcupsd.conf(5)\fR.
 .br
 http://localhost:631/help
 .SH COPYRIGHT
-Copyright 2007-2012 by Apple Inc.
+Copyright 2007-2013 by Apple Inc.
 .\"
-.\" End of "$Id: cancel.man 10424 2012-04-23 17:26:57Z mike $".
+.\" End of "$Id: cancel.man 11022 2013-06-06 22:14:09Z msweet $".
 .\"

@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc-driver.cxx 9793 2011-05-20 03:49:49Z mike $"
+// "$Id: ppdc-driver.cxx 3940 2012-10-15 21:02:10Z msweet $"
 //
 //   PPD file compiler definitions for the CUPS PPD Compiler.
 //
@@ -1025,7 +1025,16 @@ ppdcDriver::write_ppd_file(
       if (!o->choices->count)
         continue;
 
-      if (!o->text->value)
+      if (o->section == PPDC_SECTION_JCL)
+      {
+	if (!o->text->value)
+	  cupsFilePrintf(fp, "*JCLOpenUI *%s/%s: ", o->name->value,
+			 catalog->find_message(o->name->value));
+	else
+	  cupsFilePrintf(fp, "*JCLOpenUI *%s/%s: ", o->name->value,
+			 catalog->find_message(o->text->value));
+      }
+      else if (!o->text->value)
 	cupsFilePrintf(fp, "*OpenUI *%s/%s: ", o->name->value,
 	               catalog->find_message(o->name->value));
       else
@@ -1335,5 +1344,5 @@ ppdcDriver::write_ppd_file(
 
 
 //
-// End of "$Id: ppdc-driver.cxx 9793 2011-05-20 03:49:49Z mike $".
+// End of "$Id: ppdc-driver.cxx 3940 2012-10-15 21:02:10Z msweet $".
 //

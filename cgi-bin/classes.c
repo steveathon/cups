@@ -1,5 +1,5 @@
 /*
- * "$Id: classes.c 10431 2012-04-23 19:19:19Z mike $"
+ * "$Id: classes.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Class status CGI for CUPS.
  *
@@ -380,7 +380,7 @@ show_all_classes(http_t     *http,	/* I - Connection to server */
     sprintf(val, "%d", count);
     cgiSetVariable("TOTAL", val);
 
-    if ((var = cgiGetVariable("ORDER")) != NULL)
+    if ((var = cgiGetVariable("ORDER")) != NULL && *var)
       ascending = !_cups_strcasecmp(var, "asc");
     else
       ascending = 1;
@@ -554,5 +554,5 @@ show_class(http_t     *http,		/* I - Connection to server */
 
 
 /*
- * End of "$Id: classes.c 10431 2012-04-23 19:19:19Z mike $".
+ * End of "$Id: classes.c 10996 2013-05-29 11:51:34Z msweet $".
  */

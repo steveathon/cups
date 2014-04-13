@@ -1,5 +1,5 @@
 /*
- * "$Id: mime-private.h 9950 2011-09-01 23:02:24Z mike $"
+ * "$Id: mime-private.h 3411 2011-09-07 22:31:27Z msweet $"
  *
  *   Private MIME type/conversion database definitions for CUPS.
  *
@@ -41,5 +41,5 @@ extern void	_mimeError(mime_t *mime, const char *format, ...)
 #endif /* !_CUPS_MIME_PRIVATE_H_ */
 
 /*
- * End of "$Id: mime-private.h 9950 2011-09-01 23:02:24Z mike $".
+ * End of "$Id: mime-private.h 3411 2011-09-07 22:31:27Z msweet $".
  */

@@ -1,5 +1,5 @@
 dnl
-dnl "$Id: cups-defaults.m4 10424 2012-04-23 17:26:57Z mike $"
+dnl "$Id: cups-defaults.m4 7959 2008-09-17 19:30:58Z mike $"
 dnl
 dnl   Default cupsd configuration settings for CUPS.
 dnl
@@ -305,6 +305,7 @@ else
 fi
 
 AC_DEFINE_UNQUOTED(CUPS_DEFAULT_LPD_CONFIG_FILE, "$CUPS_DEFAULT_LPD_CONFIG_FILE")
+AC_SUBST(CUPS_DEFAULT_LPD_CONFIG_FILE)
 
 dnl Default SMB config file...
 AC_ARG_WITH(smbconfigfile, [  --with-smbconfigfile    set default SMBConfigFile URI],
@@ -326,6 +327,7 @@ else
 fi
 
 AC_DEFINE_UNQUOTED(CUPS_DEFAULT_SMB_CONFIG_FILE, "$CUPS_DEFAULT_SMB_CONFIG_FILE")
+AC_SUBST(CUPS_DEFAULT_SMB_CONFIG_FILE)
 
 dnl Default MaxCopies value...
 AC_ARG_WITH(max-copies, [  --with-max-copies       set default max copies value, default=9999 ],
@@ -398,5 +400,5 @@ AC_SUBST(CUPS_WEBIF)
 AC_DEFINE_UNQUOTED(CUPS_DEFAULT_WEBIF, $CUPS_DEFAULT_WEBIF)
 
 dnl
-dnl End of "$Id: cups-defaults.m4 10424 2012-04-23 17:26:57Z mike $".
+dnl End of "$Id: cups-defaults.m4 7959 2008-09-17 19:30:58Z mike $".
 dnl

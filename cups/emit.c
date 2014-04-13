@@ -1,5 +1,5 @@
 /*
- * "$Id: emit.c 10424 2012-04-23 17:26:57Z mike $"
+ * "$Id: emit.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   PPD code emission routines for CUPS.
  *
@@ -1225,5 +1225,5 @@ ppd_handle_media(ppd_file_t *ppd)	/* I - PPD file */
 
 
 /*
- * End of "$Id: emit.c 10424 2012-04-23 17:26:57Z mike $".
+ * End of "$Id: emit.c 10996 2013-05-29 11:51:34Z msweet $".
  */

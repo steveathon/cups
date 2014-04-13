@@ -1,5 +1,5 @@
 /*
- * "$Id: lppasswd.c 9950 2011-09-01 23:02:24Z mike $"
+ * "$Id: lppasswd.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   MD5 password program for CUPS.
  *
@@ -485,5 +485,5 @@ usage(FILE *fp)		/* I - File to send usage to */
 
 
 /*
- * End of "$Id: lppasswd.c 9950 2011-09-01 23:02:24Z mike $".
+ * End of "$Id: lppasswd.c 10996 2013-05-29 11:51:34Z msweet $".
  */

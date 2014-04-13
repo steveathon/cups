@@ -1,5 +1,5 @@
 /*
- * "$Id: template.c 9793 2011-05-20 03:49:49Z mike $"
+ * "$Id: template.c 11688 2014-03-05 21:11:32Z msweet $"
  *
  *   CGI template function.
  *
@@ -553,7 +553,7 @@ cgi_copy(FILE *out,			/* I - Output file */
 	      if (regcomp(&re, compare, REG_EXTENDED | REG_ICASE))
 	      {
 	        fprintf(stderr,
-		        "ERROR: Unable to compile regular expresion \"%s\"!\n",
+		        "ERROR: Unable to compile regular expression \"%s\"!\n",
 			compare);
 		result = 0;
 	      }
@@ -729,5 +729,5 @@ cgi_puturi(const char *s,		/* I - String to output */
 
 
 /*
- * End of "$Id: template.c 9793 2011-05-20 03:49:49Z mike $".
+ * End of "$Id: template.c 11688 2014-03-05 21:11:32Z msweet $".
  */

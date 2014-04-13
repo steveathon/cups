@@ -1,24 +1,25 @@
 #
-# "$Id: cups.spec.in 10558 2012-07-27 20:33:27Z mike $"
+# "$Id: cups.spec.in 11808 2014-04-10 15:11:43Z msweet $"
 #
-#   RPM "spec" file for CUPS.
+# RPM "spec" file for CUPS.
 #
-#   Original version by Jason McMullan <jmcc@ontv.com>.
+# Original version by Jason McMullan <jmcc@ontv.com>.
 #
-#   Copyright 2007-2012 by Apple Inc.
-#   Copyright 1999-2007 by Easy Software Products, all rights reserved.
+# Copyright 2007-2014 by Apple Inc.
+# Copyright 1999-2007 by Easy Software Products, all rights reserved.
 #
-#   These coded instructions, statements, and computer programs are the
-#   property of Apple Inc. and are protected by Federal copyright
-#   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-#   which should have been included with this file.  If this file is
-#   file is missing or damaged, see the license at "http://www.cups.org/".
+# These coded instructions, statements, and computer programs are the
+# property of Apple Inc. and are protected by Federal copyright
+# law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+# which should have been included with this file.  If this file is
+# file is missing or damaged, see the license at "http://www.cups.org/".
 #
 
 # Conditional build options (--with name/--without name):
 #
 #   dbus     - Enable/disable DBUS support (default = enable)
 #   dnssd    - Enable/disable DNS-SD support (default = enable)
+#   libusb1  - Enable/disable LIBUSB 1.0 support (default = enable)
 #   static   - Enable/disable static libraries (default = enable)
 
 %{!?_with_dbus: %{!?_without_dbus: %define _with_dbus --with-dbus}}
@@ -29,21 +30,40 @@
 %{?_with_dnssd: %define _dnssd --enable-dnssd}
 %{!?_with_dnssd: %define _dnssd --disable-dnssd}
 
+%{!?_with_libusb1: %{!?_without_libusb1: %define _with_libusb1 --with-libusb1}}
+%{?_with_libusb1: %define _libusb1 --enable-libusb}
+%{!?_with_libusb1: %define _libusb1 --disable-libusb}
+
 %{!?_with_static: %{!?_without_static: %define _without_static --without-static}}
 %{?_with_static: %define _static --enable-static}
 %{!?_with_static: %define _static --disable-static}
 
 Summary: CUPS
 Name: cups
-Version: 1.6.1
+Version: 1.7.2
 Release: 1
 Epoch: 1
 License: GPL
 Group: System Environment/Daemons
-Source: http://ftp.easysw.com/pub/cups/1.6.1/cups-1.6.1-source.tar.gz
+Source: http://www.cups.org/software/1.7.2/cups-1.7.2-source.tar.gz
 Url: http://www.cups.org
 Packager: Anonymous <anonymous@foo.com>
 Vendor: Apple Inc.
+
+# Package names are as defined for Red Hat (and clone) distributions
+BuildRequires: gnutls-devel, pam-devel
+
+%if %{?_with_dbus:1}%{!?_with_dbus:0}
+BuildRequires: dbus-devel
+%endif
+
+%if %{?_with_dnssd:1}%{!?_with_dnssd:0}
+BuildRequires: avahi-devel
+%endif
+
+%if %{?_with_libusb1:1}%{!?_with_libusb1:0}
+BuildRequires: libusbx-devel
+%endif
 
 # Use buildroot so as not to disturb the version already installed
 BuildRoot: /tmp/%{name}-root
@@ -89,7 +109,7 @@ This package provides LPD client support.
 
 %build
 CFLAGS="$RPM_OPT_FLAGS" CXXFLAGS="$RPM_OPT_FLAGS" LDFLAGS="$RPM_OPT_FLAGS" \
-    ./configure %{_dbus} %{_dnssd} %{_static}
+    ./configure %{_dbus} %{_dnssd} %{_libusb1} %{_static}
 # If we got this far, all prerequisite libraries must be here.
 make
 
@@ -174,6 +194,7 @@ rm -rf $RPM_BUILD_ROOT
 /usr/bin/cancel
 /usr/bin/cupstestdsc
 /usr/bin/cupstestppd
+/usr/bin/ippfind
 /usr/bin/ipptool
 /usr/bin/lp*
 %dir /usr/lib/cups
@@ -221,6 +242,12 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/cups/ppdc/*
 %dir /usr/share/cups/templates
 /usr/share/cups/templates/*
+%if %{?_with_libusb1:1}%{!?_with_libusb1:0}
+# LIBUSB quirks files
+%dir /usr/share/cups/usb
+/usr/share/cups/usb/*
+%endif
+
 %dir /usr/share/doc/cups
 /usr/share/doc/cups/*.*
 %dir /usr/share/doc/cups/help
@@ -237,7 +264,6 @@ rm -rf $RPM_BUILD_ROOT
 /usr/share/doc/cups/help/ref-*.html
 /usr/share/doc/cups/help/security.html
 /usr/share/doc/cups/help/sharing.html
-/usr/share/doc/cups/help/standard.html
 /usr/share/doc/cups/help/translation.html
 /usr/share/doc/cups/help/whatsnew.html
 %dir /usr/share/doc/cups/images
@@ -245,22 +271,43 @@ rm -rf $RPM_BUILD_ROOT
 
 %dir /usr/share/doc/cups/ca
 /usr/share/doc/cups/ca/*
+%dir /usr/share/doc/cups/cs
+/usr/share/doc/cups/cs/*
+%dir /usr/share/doc/cups/de
+/usr/share/doc/cups/de/*
 %dir /usr/share/doc/cups/es
 /usr/share/doc/cups/es/*
+%dir /usr/share/doc/cups/fr
+/usr/share/doc/cups/fr/*
+%dir /usr/share/doc/cups/it
+/usr/share/doc/cups/it/*
 %dir /usr/share/doc/cups/ja
 /usr/share/doc/cups/ja/*
+%dir /usr/share/doc/cups/ru
+/usr/share/doc/cups/ru/*
 
 %dir /usr/share/locale/ca
 /usr/share/locale/ca/cups_ca.po
+%dir /usr/share/locale/cs
+/usr/share/locale/cs/cups_cs.po
+%dir /usr/share/locale/de
+/usr/share/locale/de/cups_de.po
 %dir /usr/share/locale/es
 /usr/share/locale/es/cups_es.po
+%dir /usr/share/locale/fr
+/usr/share/locale/fr/cups_fr.po
+%dir /usr/share/locale/it
+/usr/share/locale/it/cups_it.po
 %dir /usr/share/locale/ja
 /usr/share/locale/ja/cups_ja.po
+%dir /usr/share/locale/ru
+/usr/share/locale/ru/cups_ru.po
 
 %dir /usr/share/man/man1
 /usr/share/man/man1/cancel.1.gz
 /usr/share/man/man1/cupstestdsc.1.gz
 /usr/share/man/man1/cupstestppd.1.gz
+/usr/share/man/man1/ippfind.1.gz
 /usr/share/man/man1/ipptool.1.gz
 /usr/share/man/man1/lp.1.gz
 /usr/share/man/man1/lpoptions.1.gz
@@ -349,5 +396,5 @@ rm -rf $RPM_BUILD_ROOT
 
 
 #
-# End of "$Id: cups.spec.in 10558 2012-07-27 20:33:27Z mike $".
+# End of "$Id: cups.spec.in 11808 2014-04-10 15:11:43Z msweet $".
 #

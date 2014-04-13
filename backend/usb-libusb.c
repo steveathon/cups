@@ -1,9 +1,9 @@
 /*
- * "$Id: usb-libusb.c 10543 2012-07-16 17:10:55Z mike $"
+ * "$Id: usb-libusb.c 11456 2013-12-09 19:26:47Z msweet $"
  *
  *   LIBUSB interface code for CUPS.
  *
- *   Copyright 2007-2012 by Apple Inc.
+ *   Copyright 2007-2013 by Apple Inc.
  *
  *   These coded instructions, statements, and computer programs are the
  *   property of Apple Inc. and are protected by Federal copyright
@@ -16,18 +16,20 @@
  *   list_devices()	  - List the available printers.
  *   print_device()	  - Print a file to a USB device.
  *   close_device()	  - Close the connection to the USB printer.
+ *   compare_quirks()	  - Compare two quirks entries.
  *   find_device()	  - Find or enumerate USB printers.
+ *   find_quirks()	  - Find the quirks for the given printer, if any.
  *   get_device_id()	  - Get the IEEE-1284 device ID for the printer.
  *   list_cb()		  - List USB printers for discovery.
+ *   load_quirks()	  - Load all quirks files in the /usr/share/cups/usb
+ *			    directory.
  *   make_device_uri()	  - Create a device URI for a USB printer.
  *   open_device()	  - Open a connection to the USB printer.
  *   print_cb() 	  - Find a USB printer for printing.
- *   printer_class_soft_reset()' - Do the soft reset request specific to
- *                          printers
- *   quirks()	 	  - Get the known quirks of a given printer model
  *   read_thread()	  - Thread to read the backchannel data on.
  *   sidechannel_thread() - Handle side-channel requests.
  *   soft_reset()	  - Send a soft reset to the device.
+ *   soft_reset_printer() - Do the soft reset request specific to printers
  */
 
 /*
@@ -36,6 +38,7 @@
 
 #include <libusb.h>
 #include <cups/cups-private.h>
+#include <cups/dir.h>
 #include <pthread.h>
 #include <sys/select.h>
 #include <sys/types.h>
@@ -70,15 +73,15 @@ typedef struct usb_printer_s		/**** USB Printer Data ****/
 			read_endp,	/* Read endpoint */
 			protocol,	/* Protocol: 1 = Uni-di, 2 = Bi-di. */
 			usblp_attached,	/* "usblp" kernel module attached? */
-			opened_for_job;	/* Set to 1 by print_device() */
-  unsigned int		quirks;		/* Quirks flags */
+			reset_after_job;/* Set to 1 by print_device() */
+  unsigned		quirks;		/* Quirks flags */
   struct libusb_device_handle *handle;	/* Open handle to device */
 } usb_printer_t;
 
 typedef int (*usb_cb_t)(usb_printer_t *, const char *, const char *,
                         const void *);
 
-typedef struct usb_globals_s
+typedef struct usb_globals_s		/* Global USB printer information */
 {
   usb_printer_t		*printer;	/* Printer */
 
@@ -105,61 +108,41 @@ typedef struct usb_globals_s
 } usb_globals_t;
 
 /*
- * Quirks: various printer quirks are handled by this table & its flags.
+ * Quirks: various printer quirks are handled by this structure and its flags.
  *
- * This is copied from the usblp kernel module. So we can easily copy and paste
- * new quirks from the module.
+ * The quirks table used to be compiled into the backend but is now loaded from
+ * one or more files in the /usr/share/cups/usb directory.
  */
 
-struct quirk_printer_struct {
-	int vendorId;
-	int productId;
-	unsigned int quirks;
-};
-
-#define USBLP_QUIRK_BIDIR	0x1	/* reports bidir but requires
-					   unidirectional mode (no INs/reads) */
-#define USBLP_QUIRK_USB_INIT	0x2	/* needs vendor USB init string */
-#define USBLP_QUIRK_BAD_CLASS	0x4	/* descriptor uses vendor-specific
-					   Class or SubClass */
-#define USBLP_QUIRK_NO_REATTACH	0x8000	/* After printing we cannot re-attach
+#define USB_QUIRK_BLACKLIST	0x0001	/* Does not conform to the spec */
+#define USB_QUIRK_NO_REATTACH	0x0002	/* After printing we cannot re-attach
 					   the usblp kernel module */
+#define USB_QUIRK_SOFT_RESET	0x0004	/* After printing do a soft reset
+					   for clean-up */
+#define USB_QUIRK_UNIDIR	0x0008	/* Requires unidirectional mode */
+#define USB_QUIRK_USB_INIT	0x0010	/* Needs vendor USB init string */
+#define USB_QUIRK_VENDOR_CLASS	0x0020	/* Descriptor uses vendor-specific
+					   Class or SubClass */
+#define USB_QUIRK_WHITELIST	0x0000	/* no quirks */
 
-static const struct quirk_printer_struct quirk_printers[] = {
-	{ 0x03f0, 0x0004, USBLP_QUIRK_BIDIR }, /* HP DeskJet 895C */
-	{ 0x03f0, 0x0104, USBLP_QUIRK_BIDIR }, /* HP DeskJet 880C */
-	{ 0x03f0, 0x0204, USBLP_QUIRK_BIDIR }, /* HP DeskJet 815C */
-	{ 0x03f0, 0x0304, USBLP_QUIRK_BIDIR }, /* HP DeskJet 810C/812C */
-	{ 0x03f0, 0x0404, USBLP_QUIRK_BIDIR }, /* HP DeskJet 830C */
-	{ 0x03f0, 0x0504, USBLP_QUIRK_BIDIR }, /* HP DeskJet 885C */
-	{ 0x03f0, 0x0604, USBLP_QUIRK_BIDIR }, /* HP DeskJet 840C */
-	{ 0x03f0, 0x0804, USBLP_QUIRK_BIDIR }, /* HP DeskJet 816C */
-	{ 0x03f0, 0x1104, USBLP_QUIRK_BIDIR }, /* HP Deskjet 959C */
-	{ 0x0409, 0xefbe, USBLP_QUIRK_BIDIR }, /* NEC Picty900 (HP OEM) */
-	{ 0x0409, 0xbef4, USBLP_QUIRK_BIDIR }, /* NEC Picty760 (HP OEM) */
-	{ 0x0409, 0xf0be, USBLP_QUIRK_BIDIR }, /* NEC Picty920 (HP OEM) */
-	{ 0x0409, 0xf1be, USBLP_QUIRK_BIDIR }, /* NEC Picty800 (HP OEM) */
-	{ 0x0482, 0x0010, USBLP_QUIRK_BIDIR }, /* Kyocera Mita FS 820,
-						  by zut <kernel@zut.de> */
-	{ 0x04f9, 0x000d, USBLP_QUIRK_BIDIR |
-			  USBLP_QUIRK_NO_REATTACH }, /* Brother Industries, Ltd
-						  HL-1440 Laser Printer */
-	{ 0x04b8, 0x0202, USBLP_QUIRK_BAD_CLASS }, /* Seiko Epson Receipt
-						      Printer M129C */
-	{ 0x067b, 0x2305, USBLP_QUIRK_BIDIR |
-			  USBLP_QUIRK_NO_REATTACH },
-	/* Prolific Technology, Inc. PL2305 Parallel Port
-	   (USB -> Parallel adapter) */
-	{ 0, 0 }
-};
+
+typedef struct usb_quirk_s		/* USB "quirk" information */
+{
+  int		vendor_id,		/* Affected vendor ID */
+		product_id;		/* Affected product ID or 0 for all */
+  unsigned	quirks;			/* Quirks bitfield */
+} usb_quirk_t;
+
+
 
 
 /*
  * Globals...
  */
 
+cups_array_t		*all_quirks;	/* Array of printer quirks */
 usb_globals_t		g = { 0 };	/* Globals */
-libusb_device           **list;         /* List of connected USB devices */
+libusb_device		**all_list;	/* List of connected USB devices */
 
 
 /*
@@ -167,22 +150,24 @@ libusb_device           **list;         /* List of connected USB devices */
  */
 
 static int		close_device(usb_printer_t *printer);
+static int		compare_quirks(usb_quirk_t *a, usb_quirk_t *b);
 static usb_printer_t	*find_device(usb_cb_t cb, const void *data);
+static unsigned		find_quirks(int vendor_id, int product_id);
 static int		get_device_id(usb_printer_t *printer, char *buffer,
 			              size_t bufsize);
 static int		list_cb(usb_printer_t *printer, const char *device_uri,
 			        const char *device_id, const void *data);
+static void		load_quirks(void);
 static char		*make_device_uri(usb_printer_t *printer,
 			                 const char *device_id,
 					 char *uri, size_t uri_size);
 static int		open_device(usb_printer_t *printer, int verbose);
 static int		print_cb(usb_printer_t *printer, const char *device_uri,
 			         const char *device_id, const void *data);
-static int		printer_class_soft_reset(usb_printer_t *printer);
-static unsigned int	quirks(int vendor, int product);
 static void		*read_thread(void *reference);
 static void		*sidechannel_thread(void *reference);
 static void		soft_reset(void);
+static int		soft_reset_printer(usb_printer_t *printer);
 
 
 /*
@@ -192,6 +177,8 @@ static void		soft_reset(void);
 void
 list_devices(void)
 {
+  load_quirks();
+
   fputs("DEBUG: list_devices\n", stderr);
   find_device(list_cb, NULL);
 }
@@ -234,6 +221,8 @@ print_device(const char *uri,		/* I - Device URI */
   const char	*val;			/* Option value */
 
 
+  load_quirks();
+
  /*
   * See if the side-channel descriptor is valid...
   */
@@ -256,7 +245,12 @@ print_device(const char *uri,		/* I - Device URI */
   }
 
   g.print_fd = print_fd;
-  g.printer->opened_for_job = 1;
+
+ /*
+  * Some devices need a reset after finishing a job, these devices are
+  * marked with the USB_QUIRK_SOFT_RESET quirk.
+  */
+  g.printer->reset_after_job = (g.printer->quirks & USB_QUIRK_SOFT_RESET ? 1 : 0);
 
  /*
   * If we are printing data from a print driver on stdin, ignore SIGTERM
@@ -502,7 +496,7 @@ print_device(const char *uri,		/* I - Device URI */
 	iostatus = libusb_bulk_transfer(g.printer->handle,
 					g.printer->write_endp,
 					print_buffer, g.print_bytes,
-					&bytes, 60000);
+					&bytes, 0);
        /*
 	* Ignore timeout errors, but retain the number of bytes written to
 	* avoid sending duplicate data...
@@ -525,7 +519,7 @@ print_device(const char *uri,		/* I - Device URI */
 	  iostatus = libusb_bulk_transfer(g.printer->handle,
 					  g.printer->write_endp,
 					  print_buffer, g.print_bytes,
-					  &bytes, 60000);
+					  &bytes, 0);
 	}
 
        /*
@@ -540,7 +534,7 @@ print_device(const char *uri,		/* I - Device URI */
 	  iostatus = libusb_bulk_transfer(g.printer->handle,
 					  g.printer->write_endp,
 					  print_buffer, g.print_bytes,
-					  &bytes, 60000);
+					  &bytes, 0);
         }
 
 	if (iostatus)
@@ -639,10 +633,10 @@ print_device(const char *uri,		/* I - Device URI */
        * If it didn't exit abort the pending read and wait an additional
        * second...
        */
-  
+
       if (!g.read_thread_done)
       {
-	fputs("DEBUG: Read thread still active, aborting the pending read...\n", 
+	fputs("DEBUG: Read thread still active, aborting the pending read...\n",
 	      stderr);
 
 	g.wait_eof = 0;
@@ -650,7 +644,7 @@ print_device(const char *uri,		/* I - Device URI */
 	gettimeofday(&tv, NULL);
 	cond_timeout.tv_sec  = tv.tv_sec + 1;
 	cond_timeout.tv_nsec = tv.tv_usec * 1000;
-  
+
 	while (!g.read_thread_done)
 	{
 	  if (pthread_cond_timedwait(&g.read_thread_cond, &g.read_thread_mutex,
@@ -663,9 +657,6 @@ print_device(const char *uri,		/* I - Device URI */
     pthread_mutex_unlock(&g.read_thread_mutex);
   }
 
-  if (print_fd)
-    close(print_fd);
-
  /*
   * Close the connection and input file and general clean up...
   */
@@ -676,7 +667,7 @@ print_device(const char *uri,		/* I - Device URI */
   * Clean up ....
   */
 
-  libusb_free_device_list(list, 1);
+  libusb_free_device_list(all_list, 1);
   libusb_exit(NULL);
 
   return (status);
@@ -725,7 +716,7 @@ close_device(usb_printer_t *printer)	/* I - Printer */
       */
       if (printer->origconf > 0 && printer->origconf != number2)
       {
-	fprintf(stderr, "DEBUG: Restoring USB device configuration: %d -> %d\n", 
+	fprintf(stderr, "DEBUG: Restoring USB device configuration: %d -> %d\n",
 		number2, printer->origconf);
 	if ((errcode = libusb_set_configuration(printer->handle,
 						printer->origconf)) < 0)
@@ -772,7 +763,7 @@ close_device(usb_printer_t *printer)	/* I - Printer */
     * Reset the device to clean up after the job
     */
 
-    if (printer->opened_for_job == 1)
+    if (printer->reset_after_job == 1)
     {
       if ((errcode = libusb_reset_device(printer->handle)) < 0)
 	fprintf(stderr,
@@ -796,6 +787,23 @@ close_device(usb_printer_t *printer)	/* I - Printer */
 
 
 /*
+ * 'compare_quirks()' - Compare two quirks entries.
+ */
+
+static int				/* O - Result of comparison */
+compare_quirks(usb_quirk_t *a,		/* I - First quirk entry */
+               usb_quirk_t *b)		/* I - Second quirk entry */
+{
+  int result;				/* Result of comparison */
+
+  if ((result = b->vendor_id - a->vendor_id) == 0)
+    result = b->product_id - a->product_id;
+
+  return (result);
+}
+
+
+/*
  * 'find_device()' - Find or enumerate USB printers.
  */
 
@@ -815,7 +823,8 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
 					/* Pointer to current alternate setting */
   const struct libusb_endpoint_descriptor *endpptr = NULL;
 					/* Pointer to current endpoint */
-  ssize_t               numdevs,        /* number of connected devices */
+  ssize_t               err = 0,	/* Error code */
+                        numdevs,        /* number of connected devices */
                         i = 0;
   uint8_t		conf,		/* Current configuration */
 			iface,		/* Current interface */
@@ -834,7 +843,14 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
   * Initialize libusb...
   */
 
-  libusb_init(NULL);
+  err = libusb_init(NULL);
+  if (err)
+  {
+    fprintf(stderr, "DEBUG: Unable to initialize USB access via libusb, "
+                    "libusb error %i\n", (int)err);
+    return (NULL);
+  }
+
   numdevs = libusb_get_device_list(NULL, &list);
   fprintf(stderr, "DEBUG: libusb_get_device_list=%d\n", (int)numdevs);
 
@@ -859,7 +875,14 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
           !devdesc.idProduct)
 	continue;
 
-      printer.quirks   = quirks(devdesc.idVendor, devdesc.idProduct);
+      printer.quirks = find_quirks(devdesc.idVendor, devdesc.idProduct);
+
+     /*
+      * Ignore blacklisted printers...
+      */
+
+      if (printer.quirks & USB_QUIRK_BLACKLIST)
+        continue;
 
       for (conf = 0; conf < devdesc.bNumConfigurations; conf ++)
       {
@@ -886,14 +909,14 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
 	    */
 
 	    if (((altptr->bInterfaceClass != LIBUSB_CLASS_PRINTER ||
-		  altptr->bInterfaceSubClass != 1) && 
-		 ((printer.quirks & USBLP_QUIRK_BAD_CLASS) == 0)) ||
+		  altptr->bInterfaceSubClass != 1) &&
+		 ((printer.quirks & USB_QUIRK_VENDOR_CLASS) == 0)) ||
 		(altptr->bInterfaceProtocol != 1 &&	/* Unidirectional */
 		 altptr->bInterfaceProtocol != 2) ||	/* Bidirectional */
 		altptr->bInterfaceProtocol < protocol)
 	      continue;
 
-	    if (printer.quirks & USBLP_QUIRK_BAD_CLASS)
+	    if (printer.quirks & USB_QUIRK_VENDOR_CLASS)
 	      fprintf(stderr, "DEBUG: Printer does not report class 7 and/or "
 		      "subclass 1 but works as a printer anyway\n");
 
@@ -950,7 +973,7 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
 	      {
 		fprintf(stderr, "DEBUG: Device protocol: %d\n",
 			printer.protocol);
-		if (printer.quirks & USBLP_QUIRK_BIDIR)
+		if (printer.quirks & USB_QUIRK_UNIDIR)
 		{
 		  printer.read_endp = -1;
 		  fprintf(stderr, "DEBUG: Printer reports bi-di support "
@@ -964,13 +987,13 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
 					    bEndpointAddress;
 		}
 		else
-		  fprintf(stderr, "DEBUG: Uni-directional USB communication " 
+		  fprintf(stderr, "DEBUG: Uni-directional USB communication "
 			  "only!\n");
 		printer.write_endp = confptr->interface[printer.iface].
 					   altsetting[printer.altset].
 					   endpoint[printer.write_endp].
 					   bEndpointAddress;
-		if (printer.quirks & USBLP_QUIRK_NO_REATTACH)
+		if (printer.quirks & USB_QUIRK_NO_REATTACH)
 		{
 		  printer.usblp_attached = 0;
 		  fprintf(stderr, "DEBUG: Printer does not like usblp "
@@ -997,10 +1020,40 @@ find_device(usb_cb_t   cb,		/* I - Callback function */
   * Clean up ....
   */
 
-  libusb_free_device_list(list, 1);
+  if (numdevs >= 0)
+    libusb_free_device_list(list, 1);
   libusb_exit(NULL);
 
   return (NULL);
+}
+
+
+/*
+ * 'find_quirks()' - Find the quirks for the given printer, if any.
+ *
+ * First looks for an exact match, then looks for the vendor ID wildcard match.
+ */
+
+static unsigned				/* O - Quirks flags */
+find_quirks(int vendor_id,		/* I - Vendor ID */
+            int product_id)		/* I - Product ID */
+{
+  usb_quirk_t	key,			/* Search key */
+		*match;			/* Matching quirk entry */
+
+
+  key.vendor_id  = vendor_id;
+  key.product_id = product_id;
+
+  if ((match = cupsArrayFind(all_quirks, &key)) != NULL)
+    return (match->quirks);
+
+  key.product_id = 0;
+
+  if ((match = cupsArrayFind(all_quirks, &key)) != NULL)
+    return (match->quirks);
+
+  return (USB_QUIRK_WHITELIST);
 }
 
 
@@ -1106,6 +1159,104 @@ list_cb(usb_printer_t *printer,		/* I - Printer */
   */
 
   return (0);
+}
+
+
+/*
+ * 'load_quirks()' - Load all quirks files in the /usr/share/cups/usb directory.
+ */
+
+static void
+load_quirks(void)
+{
+  const char	*datadir;		/* CUPS_DATADIR environment variable */
+  char		filename[1024],		/* Filename */
+		line[1024];		/* Line from file */
+  cups_dir_t	*dir;			/* Directory */
+  cups_dentry_t	*dent;			/* Directory entry */
+  cups_file_t	*fp;			/* Quirks file */
+  usb_quirk_t	*quirk;			/* New quirk */
+
+
+  all_quirks = cupsArrayNew((cups_array_func_t)compare_quirks, NULL);
+
+  if ((datadir = getenv("CUPS_DATADIR")) == NULL)
+    datadir = CUPS_DATADIR;
+
+  snprintf(filename, sizeof(filename), "%s/usb", datadir);
+  if ((dir = cupsDirOpen(filename)) == NULL)
+  {
+    perror(filename);
+    return;
+  }
+
+  fprintf(stderr, "DEBUG: Loading USB quirks from \"%s\".\n", filename);
+
+  while ((dent = cupsDirRead(dir)) != NULL)
+  {
+    if (!S_ISREG(dent->fileinfo.st_mode))
+      continue;
+
+    snprintf(filename, sizeof(filename), "%s/usb/%s", datadir, dent->filename);
+    if ((fp = cupsFileOpen(filename, "r")) == NULL)
+    {
+      perror(filename);
+      continue;
+    }
+
+    while (cupsFileGets(fp, line, sizeof(line)))
+    {
+     /*
+      * Skip blank and comment lines...
+      */
+
+      if (line[0] == '#' || !line[0])
+        continue;
+
+     /*
+      * Add a quirk...
+      */
+
+      if ((quirk = calloc(1, sizeof(usb_quirk_t))) == NULL)
+      {
+        perror("DEBUG: Unable to allocate memory for quirk");
+        break;
+      }
+
+      if (sscanf(line, "%x%x", &quirk->vendor_id, &quirk->product_id) < 1)
+      {
+        fprintf(stderr, "DEBUG: Bad line: %s\n", line);
+        free(quirk);
+        continue;
+      }
+
+      if (strstr(line, " blacklist"))
+        quirk->quirks |= USB_QUIRK_BLACKLIST;
+
+      if (strstr(line, " no-reattach"))
+        quirk->quirks |= USB_QUIRK_NO_REATTACH;
+
+      if (strstr(line, " soft-reset"))
+        quirk->quirks |= USB_QUIRK_SOFT_RESET;
+
+      if (strstr(line, " unidir"))
+        quirk->quirks |= USB_QUIRK_UNIDIR;
+
+      if (strstr(line, " usb-init"))
+        quirk->quirks |= USB_QUIRK_USB_INIT;
+
+      if (strstr(line, " vendor-class"))
+        quirk->quirks |= USB_QUIRK_VENDOR_CLASS;
+
+      cupsArrayAdd(all_quirks, quirk);
+    }
+
+    cupsFileClose(fp);
+  }
+
+  fprintf(stderr, "DEBUG: Loaded %d quirks.\n", cupsArrayCount(all_quirks));
+
+  cupsDirClose(dir);
 }
 
 
@@ -1288,7 +1439,7 @@ open_device(usb_printer_t *printer,	/* I - Printer */
   }
 
   printer->usblp_attached = 0;
-  printer->opened_for_job = 0;
+  printer->reset_after_job = 0;
 
   if (verbose)
     fputs("STATE: +connecting-to-device\n", stderr);
@@ -1343,7 +1494,7 @@ open_device(usb_printer_t *printer,	/* I - Printer */
 
   printer->origconf = current;
 
-  if ((errcode = 
+  if ((errcode =
        libusb_get_config_descriptor (printer->device, printer->conf, &confptr))
       < 0)
   {
@@ -1355,7 +1506,7 @@ open_device(usb_printer_t *printer,	/* I - Printer */
 
   if (number1 != current)
   {
-    fprintf(stderr, "DEBUG: Switching USB device configuration: %d -> %d\n", 
+    fprintf(stderr, "DEBUG: Switching USB device configuration: %d -> %d\n",
 	    current, number1);
     if ((errcode = libusb_set_configuration(printer->handle, number1)) < 0)
     {
@@ -1532,64 +1683,6 @@ print_cb(usb_printer_t *printer,	/* I - Printer */
   }
 
   return (!strcmp(requested_uri, detected_uri));
-}
-
-
-/*
- * 'printer_class_soft_reset()' - Do the soft reset request specific to printers
- *
- * This soft reset is specific to the printer device class and is much less
- * invasive than the general USB reset libusb_reset_device(). Especially it
- * does never happen that the USB addressing and configuration changes. What
- * is actually done is that all buffers get flushed and the bulk IN and OUT
- * pipes get reset to their default states. This clears all stall conditions.
- * See http://cholla.mmto.org/computers/linux/usb/usbprint11.pdf
- */
-
-static int				/* O - 0 on success, < 0 on error */
-printer_class_soft_reset(usb_printer_t *printer) /* I - Printer */
-{
-  struct libusb_config_descriptor *confptr = NULL;
-                                        /* Pointer to current configuration */
-  int interface,
-      errcode;
-
-  if (libusb_get_config_descriptor(printer->device, printer->conf, &confptr)
-      < 0)
-    interface = printer->iface;
-  else
-    interface = confptr->interface[printer->iface].
-      altsetting[printer->altset].bInterfaceNumber;
-  libusb_free_config_descriptor(confptr);
-  if ((errcode = libusb_control_transfer(printer->handle,
-					 LIBUSB_REQUEST_TYPE_CLASS |
-					 LIBUSB_ENDPOINT_OUT |
-					 LIBUSB_RECIPIENT_OTHER,
-					 2, 0, interface, NULL, 0, 5000)) < 0)
-    errcode = libusb_control_transfer(printer->handle,
-				      LIBUSB_REQUEST_TYPE_CLASS |
-				      LIBUSB_ENDPOINT_OUT |
-				      LIBUSB_RECIPIENT_INTERFACE,
-				      2, 0, interface, NULL, 0, 5000);
-  return errcode;
-}
-
-
-/*
- * 'quirks()' - Get the known quirks of a given printer model
- */
-
-static unsigned int quirks(int vendor, int product)
-{
-  int i;
-
-  for (i = 0; quirk_printers[i].vendorId; i++)
-  {
-    if (vendor == quirk_printers[i].vendorId &&
-	product == quirk_printers[i].productId)
-      return quirk_printers[i].quirks;
-  }
-  return 0;
 }
 
 
@@ -1816,12 +1909,14 @@ sidechannel_thread(void *reference)
  * 'soft_reset()' - Send a soft reset to the device.
  */
 
-static void soft_reset(void)
+static void
+soft_reset(void)
 {
   fd_set	  input_set;		/* Input set for select() */
   struct timeval  tv;			/* Time value */
   char		  buffer[2048];		/* Buffer */
   struct timespec cond_timeout;		/* pthread condition timeout */
+
 
  /*
   * Send an abort once a second until the I/O lock is released by the main
@@ -1867,7 +1962,7 @@ static void soft_reset(void)
   * Send the reset...
   */
 
-  printer_class_soft_reset(g.printer);
+  soft_reset_printer(g.printer);
 
  /*
   * Release the I/O lock...
@@ -1881,6 +1976,51 @@ static void soft_reset(void)
 
 
 /*
- * End of "$Id: usb-libusb.c 10543 2012-07-16 17:10:55Z mike $".
+ * 'soft_reset_printer()' - Do the soft reset request specific to printers
+ *
+ * This soft reset is specific to the printer device class and is much less
+ * invasive than the general USB reset libusb_reset_device(). Especially it
+ * does never happen that the USB addressing and configuration changes. What
+ * is actually done is that all buffers get flushed and the bulk IN and OUT
+ * pipes get reset to their default states. This clears all stall conditions.
+ * See http://cholla.mmto.org/computers/linux/usb/usbprint11.pdf
+ */
+
+static int				/* O - 0 on success, < 0 on error */
+soft_reset_printer(
+    usb_printer_t *printer)		/* I - Printer */
+{
+  struct libusb_config_descriptor *confptr = NULL;
+                                        /* Pointer to current configuration */
+  int interface,			/* Interface to reset */
+      errcode;				/* Error code */
+
+
+  if (libusb_get_config_descriptor(printer->device, printer->conf,
+                                   &confptr) < 0)
+    interface = printer->iface;
+  else
+    interface = confptr->interface[printer->iface].
+                         altsetting[printer->altset].bInterfaceNumber;
+
+  libusb_free_config_descriptor(confptr);
+
+  if ((errcode = libusb_control_transfer(printer->handle,
+					 LIBUSB_REQUEST_TYPE_CLASS |
+					 LIBUSB_ENDPOINT_OUT |
+					 LIBUSB_RECIPIENT_OTHER,
+					 2, 0, interface, NULL, 0, 5000)) < 0)
+    errcode = libusb_control_transfer(printer->handle,
+				      LIBUSB_REQUEST_TYPE_CLASS |
+				      LIBUSB_ENDPOINT_OUT |
+				      LIBUSB_RECIPIENT_INTERFACE,
+				      2, 0, interface, NULL, 0, 5000);
+
+  return (errcode);
+}
+
+
+/*
+ * End of "$Id: usb-libusb.c 11456 2013-12-09 19:26:47Z msweet $".
  */
 

@@ -1,9 +1,9 @@
 /*
- * "$Id: testipp.c 10299 2012-02-16 00:33:54Z mike $"
+ * "$Id: testipp.c 11215 2013-08-02 15:24:51Z msweet $"
  *
  *   IPP test program for CUPS.
  *
- *   Copyright 2007-2012 by Apple Inc.
+ *   Copyright 2007-2013 by Apple Inc.
  *   Copyright 1997-2005 by Easy Software Products.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -263,6 +263,9 @@ main(int  argc,			/* I - Number of command-line arguments */
   cups_file_t	*fp;		/* File pointer */
   int		i;		/* Looping var */
   int		status;		/* Status of tests (0 = success, 1 = fail) */
+#ifdef DEBUG
+  const char	*name;		/* Option name */
+#endif /* DEBUG */
 
 
   status = 0;
@@ -278,7 +281,7 @@ main(int  argc,			/* I - Number of command-line arguments */
     request = ippNew();
     request->request.op.version[0]   = 0x01;
     request->request.op.version[1]   = 0x01;
-    request->request.op.operation_id = IPP_PRINT_JOB;
+    request->request.op.operation_id = IPP_OP_PRINT_JOB;
     request->request.op.request_id   = 1;
 
     ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_CHARSET,
@@ -336,11 +339,11 @@ main(int  argc,			/* I - Number of command-line arguments */
     data.wbuffer = buffer;
 
     while ((state = ippWriteIO(&data, (ipp_iocb_t)write_cb, 1, NULL,
-                               request)) != IPP_DATA)
-      if (state == IPP_ERROR)
+                               request)) != IPP_STATE_DATA)
+      if (state == IPP_STATE_ERROR)
 	break;
 
-    if (state != IPP_DATA)
+    if (state != IPP_STATE_DATA)
     {
       printf("FAIL - %d bytes written.\n", (int)data.wused);
       status = 1;
@@ -379,13 +382,13 @@ main(int  argc,			/* I - Number of command-line arguments */
     data.rpos = 0;
 
     while ((state = ippReadIO(&data, (ipp_iocb_t)read_cb, 1, NULL,
-                              request)) != IPP_DATA)
-      if (state == IPP_ERROR)
+                              request)) != IPP_STATE_DATA)
+      if (state == IPP_STATE_ERROR)
 	break;
 
     length = ippLength(request);
 
-    if (state != IPP_DATA)
+    if (state != IPP_STATE_DATA)
     {
       printf("FAIL - %d bytes read.\n", (int)data.rpos);
       status = 1;
@@ -563,13 +566,13 @@ main(int  argc,			/* I - Number of command-line arguments */
     data.wbuffer = mixed;
 
     while ((state = ippReadIO(&data, (ipp_iocb_t)read_cb, 1, NULL,
-                              request)) != IPP_DATA)
-      if (state == IPP_ERROR)
+                              request)) != IPP_STATE_DATA)
+      if (state == IPP_STATE_ERROR)
 	break;
 
     length = ippLength(request);
 
-    if (state != IPP_DATA)
+    if (state != IPP_STATE_DATA)
     {
       printf("FAIL - %d bytes read.\n", (int)data.rpos);
       status = 1;
@@ -625,11 +628,26 @@ main(int  argc,			/* I - Number of command-line arguments */
 
     ippDelete(request);
 
+#ifdef DEBUG
+   /*
+    * Test that private option array is sorted...
+    */
+
+    fputs("_ippCheckOptions: ", stdout);
+    if ((name = _ippCheckOptions()) == NULL)
+      puts("PASS");
+    else
+    {
+      printf("FAIL (\"%s\" out of order)\n", name);
+      status = 1;
+    }
+#endif /* DEBUG */
+
    /*
     * Test _ippFindOption() private API...
     */
 
-    fputs("_ippFindOption(printer-type): ", stdout);
+    fputs("_ippFindOption(\"printer-type\"): ", stdout);
     if (_ippFindOption("printer-type"))
       puts("PASS");
     else
@@ -666,9 +684,9 @@ main(int  argc,			/* I - Number of command-line arguments */
 
       request = ippNew();
       while ((state = ippReadIO(fp, (ipp_iocb_t)cupsFileRead, 1, NULL,
-                                request)) == IPP_ATTRIBUTE);
+                                request)) == IPP_STATE_ATTRIBUTE);
 
-      if (state != IPP_DATA)
+      if (state != IPP_STATE_DATA)
       {
 	printf("Error reading IPP message from \"%s\"!\n", argv[i]);
 	status = 1;
@@ -1001,5 +1019,5 @@ write_cb(_ippdata_t   *data,		/* I - Data */
 
 
 /*
- * End of "$Id: testipp.c 10299 2012-02-16 00:33:54Z mike $".
+ * End of "$Id: testipp.c 11215 2013-08-02 15:24:51Z msweet $".
  */

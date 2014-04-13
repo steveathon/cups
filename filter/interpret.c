@@ -1,5 +1,5 @@
 /*
- * "$Id: interpret.c 10424 2012-04-23 17:26:57Z mike $"
+ * "$Id: interpret.c 11551 2014-01-29 16:31:35Z msweet $"
  *
  *   PPD command interpreter for CUPS.
  *
@@ -200,7 +200,7 @@ cupsRasterInterpretPPD(
   h->cupsImagingBBox[2]          = 612.0f;
   h->cupsImagingBBox[3]          = 792.0f;
 
-  strcpy(h->cupsPageSizeName, "Letter");
+  strlcpy(h->cupsPageSizeName, "Letter", sizeof(h->cupsPageSizeName));
 
 #ifdef __APPLE__
  /*
@@ -470,6 +470,7 @@ _cupsRasterExecPS(
     int                 *preferred_bits,/* O - Preferred bits per color */
     const char          *code)		/* I - PS code to execute */
 {
+  int			error = 0;	/* Error condition? */
   _cups_ps_stack_t	*st;		/* PostScript value stack */
   _cups_ps_obj_t	*obj;		/* Object from top of stack */
   char			*codecopy,	/* Copy of code */
@@ -477,7 +478,7 @@ _cupsRasterExecPS(
 
 
   DEBUG_printf(("_cupsRasterExecPS(h=%p, preferred_bits=%p, code=\"%s\")\n",
-                h, preferred_bits, code ? code : "(null)"));
+                h, preferred_bits, code));
 
  /*
   * Copy the PostScript code and create a stack...
@@ -612,12 +613,13 @@ _cupsRasterExecPS(
 
       case CUPS_PS_OTHER :
           _cupsRasterAddError("Unknown operator \"%s\"!\n", obj->value.other);
+	  error = 1;
           DEBUG_printf(("_cupsRasterExecPS: Unknown operator \"%s\"!\n",
 	                obj->value.other));
           break;
     }
 
-    if (obj && obj->type == CUPS_PS_OTHER)
+    if (error)
       break;
   }
 
@@ -1684,5 +1686,5 @@ DEBUG_stack(_cups_ps_stack_t *st)	/* I - Stack */
 
 
 /*
- * End of "$Id: interpret.c 10424 2012-04-23 17:26:57Z mike $".
+ * End of "$Id: interpret.c 11551 2014-01-29 16:31:35Z msweet $".
  */

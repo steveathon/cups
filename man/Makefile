@@ -1,9 +1,9 @@
 #
-# "$Id: Makefile 10515 2012-05-25 03:11:46Z mike $"
+# "$Id: Makefile 11024 2013-06-06 23:11:13Z msweet $"
 #
 #   Man page makefile for CUPS.
 #
-#   Copyright 2007-2012 by Apple Inc.
+#   Copyright 2007-2013 by Apple Inc.
 #   Copyright 1993-2006 by Easy Software Products.
 #
 #   These coded instructions, statements, and computer programs are the
@@ -24,6 +24,7 @@ MAN1	=	cancel.$(MAN1EXT) \
 		cups-config.$(MAN1EXT) \
 		cupstestdsc.$(MAN1EXT) \
 		cupstestppd.$(MAN1EXT) \
+		$(IPPFIND_MAN) \
 		ipptool.$(MAN1EXT) \
 		lp.$(MAN1EXT) \
 		lpoptions.$(MAN1EXT) \
@@ -39,6 +40,7 @@ MAN1	=	cancel.$(MAN1EXT) \
 		ppdpo.$(MAN1EXT)
 MAN5	=	classes.conf.$(MAN5EXT) \
 		client.conf.$(MAN5EXT) \
+		cups-files.conf.$(MAN5EXT) \
 		cups-snmp.conf.$(MAN5EXT) \
 		cupsd.conf.$(MAN5EXT) \
 		ipptoolfile.$(MAN5EXT) \
@@ -95,22 +97,6 @@ unittests:
 clean:
 	$(RM) mantohtml mantohtml.o
 	$(RM) $(MAN1) $(MAN5) $(MAN7) $(MAN8)
-	for file in $(MAN1); do \
-		if test $$file != ipptool.$(MAN1EXT); then \
-			$(RM) ../doc/help/man-`basename $$file .$(MAN1EXT)`.html; \
-		fi \
-	done
-	for file in $(MAN5); do \
-		if test $$file != ipptoolfile.$(MAN5EXT); then \
-			$(RM) ../doc/help/man-`basename $$file .$(MAN5EXT)`.html; \
-		fi \
-	done
-	for file in $(MAN7); do \
-		$(RM) ../doc/help/man-`basename $$file .$(MAN7EXT)`.html; \
-	done
-	for file in $(MAN8); do \
-		$(RM) ../doc/help/man-`basename $$file .$(MAN8EXT)`.html; \
-	done
 
 
 #
@@ -236,5 +222,5 @@ mantohtml:	mantohtml.o
 
 
 #
-# End of "$Id: Makefile 10515 2012-05-25 03:11:46Z mike $".
+# End of "$Id: Makefile 11024 2013-06-06 23:11:13Z msweet $".
 #

@@ -1,5 +1,5 @@
 /*
- * "$Id: conflicts.c 10424 2012-04-23 17:26:57Z mike $"
+ * "$Id: conflicts.c 3933 2012-10-01 03:01:10Z msweet $"
  *
  *   Option marking routines for CUPS.
  *
@@ -930,7 +930,7 @@ ppd_load_constraints(ppd_file_t *ppd)	/* I - PPD file */
       if (!_cups_strncasecmp(option, "Custom", 6) && !_cups_strcasecmp(choice, "True"))
       {
 	_cups_strcpy(option, option + 6);
-	strcpy(choice, "Custom");
+	strlcpy(choice, "Custom", sizeof(choice));
       }
 
       constptr->option      = ppdFindOption(ppd, option);
@@ -1210,5 +1210,5 @@ ppd_test_constraints(
 
 
 /*
- * End of "$Id: conflicts.c 10424 2012-04-23 17:26:57Z mike $".
+ * End of "$Id: conflicts.c 3933 2012-10-01 03:01:10Z msweet $".
  */

@@ -1,11 +1,11 @@
 #!/bin/sh
 #
-# "$Id: run-stp-tests.sh 10488 2012-05-21 15:35:25Z mike $"
+# "$Id: run-stp-tests.sh 11396 2013-11-06 20:09:03Z msweet $"
 #
 #   Perform the complete set of IPP compliance tests specified in the
 #   CUPS Software Test Plan.
 #
-#   Copyright 2007-2012 by Apple Inc.
+#   Copyright 2007-2013 by Apple Inc.
 #   Copyright 1997-2007 by Easy Software Products, all rights reserved.
 #
 #   These coded instructions, statements, and computer programs are the
@@ -100,6 +100,7 @@ case "$testtype" in
 		nprinters2=0
 		pjobs=0
 		pprinters=0
+		loglevel="debug2"
 		;;
 	2)
 		echo "Running the medium tests (2)"
@@ -107,6 +108,7 @@ case "$testtype" in
 		nprinters2=20
 		pjobs=20
 		pprinters=10
+		loglevel="debug"
 		;;
 	3)
 		echo "Running the extreme tests (3)"
@@ -114,6 +116,7 @@ case "$testtype" in
 		nprinters2=1000
 		pjobs=100
 		pprinters=50
+		loglevel="debug"
 		;;
 	4)
 		echo "Running the torture tests (4)"
@@ -121,6 +124,7 @@ case "$testtype" in
 		nprinters2=20000
 		pjobs=200
 		pprinters=100
+		loglevel="debug"
 		;;
 	*)
 		echo "Running the timid tests (1)"
@@ -128,6 +132,7 @@ case "$testtype" in
 		nprinters2=0
 		pjobs=10
 		pprinters=0
+		loglevel="debug2"
 		;;
 esac
 
@@ -252,16 +257,16 @@ echo ""
 
 case "$usedebugprintfs" in
 	Y* | y*)
-		echo "Enabling debug printfs; log files can be found in /tmp/cups-$user/log..."
+		echo "Enabling debug printfs (level 5); log files can be found in /tmp/cups-$user/log..."
 		CUPS_DEBUG_LOG="/tmp/cups-$user/log/debug_printfs.%d"; export CUPS_DEBUG_LOG
 		CUPS_DEBUG_LEVEL=5; export CUPS_DEBUG_LEVEL
 		CUPS_DEBUG_FILTER='^(http|_http|ipp|_ipp|cups.*Request|cupsGetResponse|cupsSend).*$'; export CUPS_DEBUG_FILTER
 		;;
 
 	0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9)
-		echo "Enabling debug printfs; log files can be found in /tmp/cups-$user/log..."
+		echo "Enabling debug printfs (level $usedebugprintfs); log files can be found in /tmp/cups-$user/log..."
 		CUPS_DEBUG_LOG="/tmp/cups-$user/log/debug_printfs.%d"; export CUPS_DEBUG_LOG
-		CUPS_DEBUG_LEVEL=$usedebugprintf; export CUPS_DEBUG_LEVEL
+		CUPS_DEBUG_LEVEL="$usedebugprintfs"; export CUPS_DEBUG_LEVEL
 		CUPS_DEBUG_FILTER='^(http|_http|ipp|_ipp|cups.*Request|cupsGetResponse|cupsSend).*$'; export CUPS_DEBUG_FILTER
 		;;
 
@@ -341,33 +346,97 @@ ln -s $root/templates /tmp/cups-$user/share
 # Local filters and configuration files...
 #
 
+instfilter() {
+	# instfilter src dst format
+	#
+	# See if the filter exists in a standard location; if so, make a
+	# symlink, otherwise create a dummy script for the specified format.
+	#
+	src="$1"
+	dst="$2"
+	format="$3"
+
+	for dir in /usr/libexec/cups/filter /usr/lib/cups/filter; do
+		if test -x "$dir/$src"; then
+			ln -s "$dir/$src" "/tmp/cups-$user/bin/filter/$dst"
+			return
+		fi
+	done
+
+	# Source filter not present, create a dummy filter
+	case $format in
+		passthru)
+			ln -s gziptoany "/tmp/cups-$user/bin/filter/$dst"
+			;;
+		pdf)
+			cat >"/tmp/cups-$user/bin/filter/$dst" <<EOF
+#!/bin/sh
+case "\$5" in
+	*media=a4* | *media=iso_a4* | *PageSize=A4*)
+		cat "$root/test/onepage-a4.pdf"
+		;;
+	*)
+		cat "$root/test/onepage-letter.pdf"
+		;;
+esac
+EOF
+			chmod +x "/tmp/cups-$user/bin/filter/$dst"
+			;;
+		ps)
+			cat >"/tmp/cups-$user/bin/filter/$dst" <<EOF
+#!/bin/sh
+case "\$5" in
+	*media=a4* | *media=iso_a4* | *PageSize=A4*)
+		cat "$root/test/onepage-a4.ps"
+		;;
+	*)
+		cat "$root/test/onepage-letter.ps"
+		;;
+esac
+EOF
+			chmod +x "/tmp/cups-$user/bin/filter/$dst"
+			;;
+		raster)
+			cat >"/tmp/cups-$user/bin/filter/$dst" <<EOF
+#!/bin/sh
+case "\$5" in
+	*media=a4* | *media=iso_a4* | *PageSize=A4*)
+		gunzip -c "$root/test/onepage-a4-300-black-1.pwg.gz"
+		;;
+	*)
+		gunzip -c "$root/test/onepage-letter-300-black-1.pwg.gz"
+		;;
+esac
+EOF
+			chmod +x "/tmp/cups-$user/bin/filter/$dst"
+			;;
+	esac
+}
+ 
+ln -s $root/test/test.convs /tmp/cups-$user/share/mime
+
 if test `uname` = Darwin; then
-	ln -s /usr/libexec/cups/filter/cgpdfto* /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/cgbannertopdf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/cgimagetopdf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/cgtexttopdf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/nsimagetopdf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/nstexttopdf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/pictwpstops /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/pstoappleps /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/pstocupsraster /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/pstopdffilter /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/rastertourf /tmp/cups-$user/bin/filter
-	ln -s /usr/libexec/cups/filter/xhtmltopdf /tmp/cups-$user/bin/filter
-
-	if test -f /private/etc/cups/apple.types; then
-		ln -s /private/etc/cups/apple.* /tmp/cups-$user/share/mime
-	elif test -f /usr/share/cups/mime/apple.types; then
-		ln -s /usr/share/cups/mime/apple.* /tmp/cups-$user/share/mime
-	fi
+	instfilter cgbannertopdf bannertopdf pdf
+	instfilter cgimagetopdf imagetopdf pdf
+	instfilter cgpdftopdf pdftopdf passthru
+	instfilter cgpdftops pdftops ps
+	instfilter cgpdftoraster pdftoraster raster
+	instfilter cgtexttopdf texttopdf pdf
+	instfilter pstocupsraster pstoraster raster
+	instfilter pstopdffilter pstopdf pdf
 else
-	ln -s /usr/lib/cups/filter/bannertops /tmp/cups-$user/bin/filter
-	ln -s /usr/lib/cups/filter/imagetops /tmp/cups-$user/bin/filter
-	ln -s /usr/lib/cups/filter/imagetoraster /tmp/cups-$user/bin/filter
-	ln -s /usr/lib/cups/filter/pdftops /tmp/cups-$user/bin/filter
-	ln -s /usr/lib/cups/filter/texttops /tmp/cups-$user/bin/filter
+	instfilter bannertopdf bannertopdf pdf
+	instfilter bannertops bannertops ps
+	instfilter imagetopdf imagetopdf pdf
+	instfilter pdftopdf pdftopdf passthru
+	instfilter pdftops pdftops ps
+	instfilter pdftoraster pdftoraster raster
+	instfilter pstoraster pstoraster raster
+	instfilter texttopdf texttopdf pdf
 
-	ln -s /usr/share/cups/mime/legacy.convs /tmp/cups-$user/share/mime
+	if test -d /usr/share/cups/charsets; then
+		ln -s /usr/share/cups/charsets /tmp/cups-$user/share
+	fi
 fi
 
 #
@@ -385,30 +454,17 @@ fi
 cat >/tmp/cups-$user/cupsd.conf <<EOF
 StrictConformance Yes
 Browsing Off
-FileDevice yes
-Printcap
 Listen localhost:$port
-User $user
-ServerRoot /tmp/cups-$user
-StateDir /tmp/cups-$user
-ServerBin /tmp/cups-$user/bin
-CacheDir /tmp/cups-$user/share
-DataDir /tmp/cups-$user/share
-FontPath /tmp/cups-$user/share/fonts
+Listen /tmp/cups-$user/sock
 PassEnv LOCALEDIR
 PassEnv DYLD_INSERT_LIBRARIES
-DocumentRoot $root/doc
-RequestRoot /tmp/cups-$user/spool
-TempDir /tmp/cups-$user/spool/temp
 MaxSubscriptions 3
 MaxLogSize 0
-AccessLog /tmp/cups-$user/log/access_log
-ErrorLog /tmp/cups-$user/log/error_log
-PageLog /tmp/cups-$user/log/page_log
 AccessLogLevel actions
-LogLevel debug2
+LogLevel $loglevel
 LogTimeFormat usecs
 PreserveJobHistory Yes
+PreserveJobFiles No
 <Policy default>
 <Limit All>
 Order Allow,Deny
@@ -416,6 +472,28 @@ $encryption
 </Limit>
 </Policy>
 EOF
+
+cat >/tmp/cups-$user/cups-files.conf <<EOF
+FileDevice yes
+Printcap
+User $user
+ServerRoot /tmp/cups-$user
+StateDir /tmp/cups-$user
+ServerBin /tmp/cups-$user/bin
+CacheDir /tmp/cups-$user/share
+DataDir /tmp/cups-$user/share
+FontPath /tmp/cups-$user/share/fonts
+DocumentRoot $root/doc
+RequestRoot /tmp/cups-$user/spool
+TempDir /tmp/cups-$user/spool/temp
+AccessLog /tmp/cups-$user/log/access_log
+ErrorLog /tmp/cups-$user/log/error_log
+PageLog /tmp/cups-$user/log/page_log
+EOF
+
+if test $ssltype != 0 -a `uname` = Darwin; then
+	echo "ServerCertificate $HOME/Library/Keychains/login.keychain" >> /tmp/cups-$user/cups-files.conf
+fi
 
 #
 # Setup lots of test queues - half with PPD files, half without...
@@ -562,6 +640,11 @@ if test "x$testtype" = x0; then
 	echo "LD_PRELOAD=\"$LD_PRELOAD\"; export LD_PRELOAD" >>$runcups
 	echo "LOCALEDIR=\"$LOCALEDIR\"; export LOCALEDIR" >>$runcups
 	echo "SHLIB_PATH=\"$SHLIB_PATH\"; export SHLIB_PATH" >>$runcups
+	if test "x$CUPS_DEBUG_LEVEL" != x; then
+		echo "CUPS_DEBUG_FILTER='$CUPS_DEBUG_FILTER'; export CUPS_DEBUG_FILTER" >>$runcups
+		echo "CUPS_DEBUG_LEVEL=$CUPS_DEBUG_LEVEL; export CUPS_DEBUG_LEVEL" >>$runcups
+		echo "CUPS_DEBUG_LOG='$CUPS_DEBUG_LOG'; export CUPS_DEBUG_LOG" >>$runcups
+	fi
 	echo "" >>$runcups
 	echo "# Run command..." >>$runcups
 	echo "exec \"\$@\"" >>$runcups
@@ -600,7 +683,7 @@ done
 #
 
 date=`date "+%Y-%m-%d"`
-strfile=/tmp/cups-$user/cups-str-1.6-$date-$user.html
+strfile=/tmp/cups-$user/cups-str-1.7-$date-$user.html
 
 rm -f $strfile
 cat str-header.html >$strfile
@@ -829,7 +912,7 @@ else
 fi
 
 # Warning log messages
-count=`$GREP '^W ' /tmp/cups-$user/log/error_log | wc -l | awk '{print $1}'`
+count=`$GREP '^W ' /tmp/cups-$user/log/error_log | $GREP -v CreateProfile | wc -l | awk '{print $1}'`
 if test $count != 9; then
 	echo "FAIL: $count warning messages, expected 9."
 	$GREP '^W ' /tmp/cups-$user/log/error_log
@@ -936,5 +1019,5 @@ if test $fail != 0; then
 fi
 
 #
-# End of "$Id: run-stp-tests.sh 10488 2012-05-21 15:35:25Z mike $"
+# End of "$Id: run-stp-tests.sh 11396 2013-11-06 20:09:03Z msweet $"
 #

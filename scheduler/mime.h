@@ -1,5 +1,5 @@
 /*
- * "$Id: mime.h 9750 2011-05-06 22:53:53Z mike $"
+ * "$Id: mime.h 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   MIME type/conversion database definitions for CUPS.
  *
@@ -158,5 +158,5 @@ extern void		mimeSetErrorCallback(mime_t *mime, mime_error_cb_t cb,
 #endif /* !_CUPS_MIME_H_ */
 
 /*
- * End of "$Id: mime.h 9750 2011-05-06 22:53:53Z mike $".
+ * End of "$Id: mime.h 10996 2013-05-29 11:51:34Z msweet $".
  */
