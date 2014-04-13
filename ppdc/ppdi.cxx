@@ -1,5 +1,5 @@
 //
-// "$Id: ppdi.cxx 9636 2011-03-21 22:02:00Z mike $"
+// "$Id: ppdi.cxx 3071 2011-03-23 00:05:29Z msweet $"
 //
 //   PPD file import utility for the CUPS PPD Compiler.
 //
@@ -138,5 +138,5 @@ usage(void)
 
 
 //
-// End of "$Id: ppdi.cxx 9636 2011-03-21 22:02:00Z mike $".
+// End of "$Id: ppdi.cxx 3071 2011-03-23 00:05:29Z msweet $".
 //

@@ -1,46 +1,19 @@
 /*
- * "$Id: client.c 10455 2012-05-07 22:41:30Z mike $"
+ * "$Id: client.c 11642 2014-02-27 15:57:59Z msweet $"
  *
- *   Client routines for the CUPS scheduler.
+ * Client routines for the CUPS scheduler.
  *
- *   Copyright 2007-2012 by Apple Inc.
- *   Copyright 1997-2007 by Easy Software Products, all rights reserved.
+ * Copyright 2007-2014 by Apple Inc.
+ * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
- *   This file contains Kerberos support code, copyright 2006 by
- *   Jelmer Vernooij.
+ * This file contains Kerberos support code, copyright 2006 by
+ * Jelmer Vernooij.
  *
- *   These coded instructions, statements, and computer programs are the
- *   property of Apple Inc. and are protected by Federal copyright
- *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
- *   which should have been included with this file.  If this file is
- *   file is missing or damaged, see the license at "http://www.cups.org/".
- *
- * Contents:
- *
- *   cupsdAcceptClient()    - Accept a new client.
- *   cupsdCloseAllClients() - Close all remote clients immediately.
- *   cupsdCloseClient()     - Close a remote client.
- *   cupsdFlushHeader()     - Flush the header fields to the client.
- *   cupsdReadClient()	    - Read data from a client.
- *   cupsdSendCommand()     - Send output from a command via HTTP.
- *   cupsdSendError()	    - Send an error message via HTTP.
- *   cupsdSendHeader()	    - Send an HTTP request.
- *   cupsdUpdateCGI()	    - Read status messages from CGI scripts and
- *			      programs.
- *   cupsdWriteClient()     - Write data to a client as needed.
- *   check_if_modified()    - Decode an "If-Modified-Since" line.
- *   compare_clients()	    - Compare two client connections.
- *   data_ready()	    - Check whether data is available from a client.
- *   get_file() 	    - Get a filename and state info.
- *   install_conf_file()    - Install a configuration file.
- *   is_cgi()		    - Is the resource a CGI script/program?
- *   is_path_absolute()     - Is a path absolute and free of relative elements
- *			      (i.e. "..").
- *   pipe_command()	    - Pipe the output of a command to the remote
- *			      client.
- *   valid_host()	    - Is the Host: field valid?
- *   write_file()	    - Send a file via HTTP.
- *   write_pipe()	    - Flag that data is available on the CGI pipe.
+ * These coded instructions, statements, and computer programs are the
+ * property of Apple Inc. and are protected by Federal copyright
+ * law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+ * which should have been included with this file.  If this file is
+ * file is missing or damaged, see the license at "http://www.cups.org/".
  */
 
 /*
@@ -49,6 +22,9 @@
 
 #include "cupsd.h"
 
+#ifdef __APPLE__
+#  include <libproc.h>
+#endif /* __APPLE__ */
 #ifdef HAVE_TCPD_H
 #  include <tcpd.h>
 #endif /* HAVE_TCPD_H */
@@ -60,20 +36,23 @@
 
 static const char 	* const http_states[] =
 			{		/* HTTP state strings */
-			  "HTTP_WAITING",
-			  "HTTP_OPTIONS",
-			  "HTTP_GET",
-			  "HTTP_GET_SEND",
-			  "HTTP_HEAD",
-			  "HTTP_POST",
-			  "HTTP_POST_RECV",
-			  "HTTP_POST_SEND",
-			  "HTTP_PUT",
-			  "HTTP_PUT_RECV",
-			  "HTTP_DELETE",
-			  "HTTP_TRACE",
-			  "HTTP_CLOSE",
-			  "HTTP_STATUS"
+			  "HTTP_STATE_ERROR",
+			  "HTTP_STATE_WAITING",
+			  "HTTP_STATE_OPTIONS",
+			  "HTTP_STATE_GET",
+			  "HTTP_STATE_GET_SEND",
+			  "HTTP_STATE_HEAD",
+			  "HTTP_STATE_POST",
+			  "HTTP_STATE_POST_RECV",
+			  "HTTP_STATE_POST_SEND",
+			  "HTTP_STATE_PUT",
+			  "HTTP_STATE_PUT_RECV",
+			  "HTTP_STATE_DELETE",
+			  "HTTP_STATE_TRACE",
+			  "HTTP_STATE_CONNECT",
+			  "HTTP_STATE_STATUS",
+			  "HTTP_STATE_UNKNOWN_METHOD",
+			  "HTTP_STATE_UNKNOWN_VERSION"
 			};
 static const char 	* const ipp_states[] =
 			{		/* IPP state strings */
@@ -95,7 +74,7 @@ static int		compare_clients(cupsd_client_t *a, cupsd_client_t *b,
 static int		data_ready(cupsd_client_t *con);
 static char		*get_file(cupsd_client_t *con, struct stat *filestats,
 			          char *filename, int len);
-static http_status_t	install_conf_file(cupsd_client_t *con);
+static http_status_t	install_cupsd_conf(cupsd_client_t *con);
 static int		is_cgi(cupsd_client_t *con, const char *filename,
 		               struct stat *filestats, mime_type_t *type);
 static int		is_path_absolute(const char *path);
@@ -178,6 +157,7 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   con->http.activity   = time(NULL);
   con->http.hostaddr   = &(con->clientaddr);
   con->http.wait_value = 10000;
+  con->http.mode       = _HTTP_MODE_SERVER;
 
  /*
   * Accept the client and get the remote address...
@@ -202,7 +182,7 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   * Save the connected port number...
   */
 
-  _httpAddrSetPort(con->http.hostaddr, _httpAddrPort(&(lis->address)));
+  _httpAddrSetPort(con->http.hostaddr, httpAddrPort(&(lis->address)));
 
 #ifdef AF_INET6
  /*
@@ -373,13 +353,36 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
 
 #ifdef AF_LOCAL
   if (con->http.hostaddr->addr.sa_family == AF_LOCAL)
+  {
+#  ifdef __APPLE__
+    socklen_t	peersize;		/* Size of peer credentials */
+    pid_t	peerpid;		/* Peer process ID */
+    char	name[256];		/* Name of process */
+
+    peersize = sizeof(peerpid);
+    if (!getsockopt(con->http.fd, SOL_LOCAL, LOCAL_PEERPID, &peerpid,
+        &peersize))
+    {
+      if (!proc_name(peerpid, name, sizeof(name)))
+	cupsdLogMessage(CUPSD_LOG_DEBUG,
+	                "[Client %d] Accepted from %s (Domain ???[%d])",
+			con->http.fd, con->http.hostname, (int)peerpid);
+      else
+	cupsdLogMessage(CUPSD_LOG_DEBUG,
+	                "[Client %d] Accepted from %s (Domain %s[%d])",
+			con->http.fd, con->http.hostname, name, (int)peerpid);
+    }
+    else
+#  endif /* __APPLE__ */
+
     cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Accepted from %s (Domain)",
                     con->http.fd, con->http.hostname);
+  }
   else
 #endif /* AF_LOCAL */
   cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Accepted from %s:%d (IPv%d)",
                   con->http.fd, con->http.hostname,
-		  _httpAddrPort(con->http.hostaddr),
+		  httpAddrPort(con->http.hostaddr),
 		  _httpAddrFamily(con->http.hostaddr) == AF_INET ? 4 : 6);
 
  /*
@@ -392,13 +395,13 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
     cupsdLogMessage(CUPSD_LOG_ERROR, "Unable to get local address - %s",
                     strerror(errno));
 
-    strcpy(con->servername, "localhost");
+    strlcpy(con->servername, "localhost", sizeof(con->servername));
     con->serverport = LocalPort;
   }
 #ifdef AF_LOCAL
   else if (_httpAddrFamily(&temp) == AF_LOCAL)
   {
-    strcpy(con->servername, "localhost");
+    strlcpy(con->servername, "localhost", sizeof(con->servername));
     con->serverport = LocalPort;
   }
 #endif /* AF_LOCAL */
@@ -406,12 +409,12 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   {
     if (httpAddrLocalhost(&temp))
       strlcpy(con->servername, "localhost", sizeof(con->servername));
-    else if (HostNameLookups || RemotePort)
+    else if (HostNameLookups)
       httpAddrLookup(&temp, con->servername, sizeof(con->servername));
     else
       httpAddrString(&temp, con->servername, sizeof(con->servername));
 
-    con->serverport = _httpAddrPort(&(lis->address));
+    con->serverport = httpAddrPort(&(lis->address));
   }
 
  /*
@@ -440,6 +443,9 @@ cupsdAcceptClient(cupsd_listener_t *lis)/* I - Listener socket */
   */
 
   cupsdAddSelect(con->http.fd, (cupsd_selfunc_t)cupsdReadClient, NULL, con);
+
+  cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Waiting for request.",
+		  con->http.fd);
 
  /*
   * Temporarily suspend accept()'s until we lose a client...
@@ -564,6 +570,9 @@ cupsdCloseClient(cupsd_client_t *con)	/* I - Client to close */
 
       shutdown(con->http.fd, 0);
       cupsdAddSelect(con->http.fd, (cupsd_selfunc_t)cupsdReadClient, NULL, con);
+
+      cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Waiting for socket close.",
+		      con->http.fd);
     }
     else
     {
@@ -650,7 +659,7 @@ cupsdFlushHeader(cupsd_client_t *con)	/* I - Client to flush to */
 {
   int bytes = httpFlushWrite(HTTP(con));
 
-  con->http.data_encoding = HTTP_ENCODE_LENGTH;
+  con->http.data_encoding = HTTP_ENCODING_LENGTH;
 
   return (bytes);
 }
@@ -687,13 +696,13 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 		  "error=%d, "
 		  "used=%d, "
 		  "state=%s, "
-		  "data_encoding=HTTP_ENCODE_%s, "
+		  "data_encoding=HTTP_ENCODING_%s, "
 		  "data_remaining=" CUPS_LLFMT ", "
 		  "request=%p(%s), "
 		  "file=%d",
 		  con->http.fd, con->http.error, con->http.used,
-		  http_states[con->http.state],
-		  con->http.data_encoding == HTTP_ENCODE_CHUNKED ?
+		  http_states[con->http.state + 1],
+		  con->http.data_encoding == HTTP_ENCODING_CHUNKED ?
 		      "CHUNKED" : "LENGTH",
 		  CUPS_LLCAST con->http.data_remaining,
 		  con->request,
@@ -730,7 +739,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
   switch (con->http.state)
   {
-    case HTTP_WAITING :
+    case HTTP_STATE_WAITING :
        /*
         * See if we've received a request line...
 	*/
@@ -739,12 +748,12 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	{
 	  if (con->http.error && con->http.error != EPIPE)
 	    cupsdLogMessage(CUPSD_LOG_DEBUG,
-			    "[Client %d] HTTP_WAITING Closing for error %d "
+			    "[Client %d] HTTP_STATE_WAITING Closing for error %d "
 			    "(%s)", con->http.fd, con->http.error,
 			    strerror(con->http.error));
 	  else
 	    cupsdLogMessage(CUPSD_LOG_DEBUG,
-	                    "[Client %d] HTTP_WAITING Closing on EOF",
+	                    "[Client %d] HTTP_STATE_WAITING Closing on EOF",
 			    con->http.fd);
 
 	  cupsdCloseClient(con);
@@ -767,10 +776,10 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
         con->http.activity        = time(NULL);
         con->http.version         = HTTP_1_0;
 	con->http.keep_alive      = HTTP_KEEPALIVE_OFF;
-	con->http.data_encoding   = HTTP_ENCODE_LENGTH;
+	con->http.data_encoding   = HTTP_ENCODING_LENGTH;
 	con->http.data_remaining  = 0;
 	con->http._data_remaining = 0;
-	con->operation            = HTTP_WAITING;
+	con->operation            = HTTP_STATE_WAITING;
 	con->bytes                = 0;
 	con->file                 = -1;
 	con->file_ready           = 0;
@@ -912,7 +921,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	  * con->uri are HTTP_MAX_URI bytes in size...
 	  */
 
-          strcpy(con->uri, resource);
+          strlcpy(con->uri, resource, sizeof(con->uri));
 	}
 
        /*
@@ -920,19 +929,19 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	*/
 
         if (!strcmp(operation, "GET"))
-	  con->http.state = HTTP_GET;
+	  con->http.state = HTTP_STATE_GET;
         else if (!strcmp(operation, "PUT"))
-	  con->http.state = HTTP_PUT;
+	  con->http.state = HTTP_STATE_PUT;
         else if (!strcmp(operation, "POST"))
-	  con->http.state = HTTP_POST;
+	  con->http.state = HTTP_STATE_POST;
         else if (!strcmp(operation, "DELETE"))
-	  con->http.state = HTTP_DELETE;
+	  con->http.state = HTTP_STATE_DELETE;
         else if (!strcmp(operation, "TRACE"))
-	  con->http.state = HTTP_TRACE;
+	  con->http.state = HTTP_STATE_TRACE;
         else if (!strcmp(operation, "OPTIONS"))
-	  con->http.state = HTTP_OPTIONS;
+	  con->http.state = HTTP_STATE_OPTIONS;
         else if (!strcmp(operation, "HEAD"))
-	  con->http.state = HTTP_HEAD;
+	  con->http.state = HTTP_STATE_HEAD;
 	else
 	{
 	  cupsdLogMessage(CUPSD_LOG_ERROR,
@@ -958,13 +967,13 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
           cupsdSetBusyState();
         }
 
-    case HTTP_OPTIONS :
-    case HTTP_DELETE :
-    case HTTP_GET :
-    case HTTP_HEAD :
-    case HTTP_POST :
-    case HTTP_PUT :
-    case HTTP_TRACE :
+    case HTTP_STATE_OPTIONS :
+    case HTTP_STATE_DELETE :
+    case HTTP_STATE_GET :
+    case HTTP_STATE_HEAD :
+    case HTTP_STATE_POST :
+    case HTTP_STATE_PUT :
+    case HTTP_STATE_TRACE :
        /*
         * Parse incoming parameters until the status changes...
 	*/
@@ -1094,7 +1103,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	return;
       }
     }
-    else if (con->operation == HTTP_OPTIONS)
+    else if (con->operation == HTTP_STATE_OPTIONS)
     {
      /*
       * Do OPTIONS command...
@@ -1124,7 +1133,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	}
 
 	httpPrintf(HTTP(con), "Connection: Upgrade\r\n");
-	httpPrintf(HTTP(con), "Upgrade: TLS/1.0,HTTP/1.1\r\n");
+	httpPrintf(HTTP(con), "Upgrade: TLS/1.2,TLS/1.1,TLS/1.0\r\n");
 	httpPrintf(HTTP(con), "Content-Length: 0\r\n");
 	httpPrintf(HTTP(con), "\r\n");
 
@@ -1198,7 +1207,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	}
 
 	httpPrintf(HTTP(con), "Connection: Upgrade\r\n");
-	httpPrintf(HTTP(con), "Upgrade: TLS/1.0,HTTP/1.1\r\n");
+	httpPrintf(HTTP(con), "Upgrade: TLS/1.2,TLS/1.1,TLS/1.0\r\n");
 	httpPrintf(HTTP(con), "Content-Length: 0\r\n");
 	httpPrintf(HTTP(con), "\r\n");
 
@@ -1230,7 +1239,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
       }
 
       if (con->http.expect &&
-          (con->operation == HTTP_POST || con->operation == HTTP_PUT))
+          (con->operation == HTTP_STATE_POST || con->operation == HTTP_STATE_PUT))
       {
         if (con->http.expect == HTTP_CONTINUE)
 	{
@@ -1270,8 +1279,10 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
       switch (con->http.state)
       {
-	case HTTP_GET_SEND :
-            if (!strncmp(con->uri, "/printers/", 10) &&
+	case HTTP_STATE_GET_SEND :
+            if ((!strncmp(con->uri, "/ppd/", 5) ||
+		 !strncmp(con->uri, "/printers/", 10) ||
+		 !strncmp(con->uri, "/classes/", 9)) &&
 		!strcmp(con->uri + strlen(con->uri) - 4, ".ppd"))
 	    {
 	     /*
@@ -1281,8 +1292,43 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
               con->uri[strlen(con->uri) - 4] = '\0';	/* Drop ".ppd" */
 
-              if ((p = cupsdFindPrinter(con->uri + 10)) != NULL)
+	      if (!strncmp(con->uri, "/ppd/", 5))
+		p = cupsdFindPrinter(con->uri + 5);
+	      else if (!strncmp(con->uri, "/printers/", 10))
+		p = cupsdFindPrinter(con->uri + 10);
+	      else
+	      {
+		p = cupsdFindClass(con->uri + 9);
+
+		if (p)
+		{
+		  int i;		/* Looping var */
+
+		  for (i = 0; i < p->num_printers; i ++)
+		  {
+		    if (!(p->printers[i]->type & CUPS_PRINTER_CLASS))
+		    {
+		      char ppdname[1024];/* PPD filename */
+
+		      snprintf(ppdname, sizeof(ppdname), "%s/ppd/%s.ppd",
+		               ServerRoot, p->printers[i]->name);
+		      if (!access(ppdname, 0))
+		      {
+		        p = p->printers[i];
+		        break;
+		      }
+		    }
+		  }
+
+                  if (i >= p->num_printers)
+                    p = NULL;
+		}
+	      }
+
+	      if (p)
+	      {
 		snprintf(con->uri, sizeof(con->uri), "/ppd/%s.ppd", p->name);
+	      }
 	      else
 	      {
 		if (!cupsdSendError(con, HTTP_NOT_FOUND, CUPSD_AUTH_NONE))
@@ -1294,7 +1340,8 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 		break;
 	      }
 	    }
-            else if ((!strncmp(con->uri, "/printers/", 10) ||
+            else if ((!strncmp(con->uri, "/icons/", 7) ||
+		      !strncmp(con->uri, "/printers/", 10) ||
 		      !strncmp(con->uri, "/classes/", 9)) &&
 		     !strcmp(con->uri + strlen(con->uri) - 4, ".png"))
 	    {
@@ -1305,10 +1352,38 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
 	      con->uri[strlen(con->uri) - 4] = '\0';	/* Drop ".png" */
 
-              if (!strncmp(con->uri, "/printers/", 10))
+              if (!strncmp(con->uri, "/icons/", 7))
+                p = cupsdFindPrinter(con->uri + 7);
+              else if (!strncmp(con->uri, "/printers/", 10))
                 p = cupsdFindPrinter(con->uri + 10);
               else
-                p = cupsdFindClass(con->uri + 9);
+              {
+		p = cupsdFindClass(con->uri + 9);
+
+		if (p)
+		{
+		  int i;		/* Looping var */
+
+		  for (i = 0; i < p->num_printers; i ++)
+		  {
+		    if (!(p->printers[i]->type & CUPS_PRINTER_CLASS))
+		    {
+		      char ppdname[1024];/* PPD filename */
+
+		      snprintf(ppdname, sizeof(ppdname), "%s/ppd/%s.ppd",
+		               ServerRoot, p->printers[i]->name);
+		      if (!access(ppdname, 0))
+		      {
+		        p = p->printers[i];
+		        break;
+		      }
+		    }
+		  }
+
+                  if (i >= p->num_printers)
+                    p = NULL;
+		}
+	      }
 
               if (p)
 		snprintf(con->uri, sizeof(con->uri), "/icons/%s.png", p->name);
@@ -1489,7 +1564,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	      else
               {
 		if (type == NULL)
-	          strcpy(line, "text/plain");
+	          strlcpy(line, "text/plain", sizeof(line));
 		else
 	          snprintf(line, sizeof(line), "%s/%s", type->super, type->type);
 
@@ -1502,7 +1577,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
             break;
 
-	case HTTP_POST_RECV :
+	case HTTP_STATE_POST_RECV :
            /*
 	    * See if the POST request includes a Content-Length field, and if
 	    * so check the length against any limits that are set...
@@ -1526,7 +1601,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
             }
 	    else if (con->http.data_remaining < 0 ||
 	             (!con->http.fields[HTTP_FIELD_CONTENT_LENGTH][0] &&
-		      con->http.data_encoding == HTTP_ENCODE_LENGTH))
+		      con->http.data_encoding == HTTP_ENCODING_LENGTH))
 	    {
 	     /*
 	      * Negative content lengths are invalid!
@@ -1661,22 +1736,19 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
 	    break;
 
-	case HTTP_PUT_RECV :
+	case HTTP_STATE_PUT_RECV :
 	   /*
 	    * Validate the resource name...
 	    */
 
-            if (strncmp(con->uri, "/admin/conf/", 12) ||
-	        strchr(con->uri + 12, '/') ||
-		strlen(con->uri) == 12)
+            if (strcmp(con->uri, "/admin/conf/cupsd.conf"))
 	    {
 	     /*
-	      * PUT can only be done to configuration files under
-	      * /admin/conf...
+	      * PUT can only be done to the cupsd.conf file...
 	      */
 
 	      cupsdLogMessage(CUPSD_LOG_ERROR,
-			      "[Client %d] Request for subdirectory \"%s\".",
+			      "[Client %d] Disallowed PUT request for \"%s\".",
 			      con->http.fd, con->uri);
 
 	      if (!cupsdSendError(con, HTTP_FORBIDDEN, CUPSD_AUTH_NONE))
@@ -1751,13 +1823,13 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    fcntl(con->file, F_SETFD, fcntl(con->file, F_GETFD) | FD_CLOEXEC);
 	    break;
 
-	case HTTP_DELETE :
-	case HTTP_TRACE :
+	case HTTP_STATE_DELETE :
+	case HTTP_STATE_TRACE :
             cupsdSendError(con, HTTP_NOT_IMPLEMENTED, CUPSD_AUTH_NONE);
 	    cupsdCloseClient(con);
 	    return;
 
-	case HTTP_HEAD :
+	case HTTP_STATE_HEAD :
             if (!strncmp(con->uri, "/printers/", 10) &&
 		!strcmp(con->uri + strlen(con->uri) - 4, ".ppd"))
 	    {
@@ -1806,7 +1878,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
 	    else if (!WebInterface)
 	    {
-              if (!cupsdSendHeader(con, HTTP_OK, line, CUPSD_AUTH_NONE))
+              if (!cupsdSendHeader(con, HTTP_OK, NULL, CUPSD_AUTH_NONE))
 	      {
 		cupsdCloseClient(con);
 		return;
@@ -1824,7 +1896,9 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 		return;
 	      }
 
-	      con->http.state = HTTP_WAITING;
+	      con->http.state = HTTP_STATE_WAITING;
+	      DEBUG_puts("cupsdReadClient: Set state to HTTP_STATE_WAITING "
+	                 "after HEAD.");
 	      break;
 	    }
 
@@ -1914,7 +1988,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
 	      type = mimeFileType(MimeDatabase, filename, NULL, NULL);
 	      if (type == NULL)
-		strcpy(line, "text/plain");
+		strlcpy(line, "text/plain", sizeof(line));
 	      else
 		snprintf(line, sizeof(line), "%s/%s", type->super, type->type);
 
@@ -1953,7 +2027,9 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	      return;
 	    }
 
-            con->http.state = HTTP_WAITING;
+            con->http.state = HTTP_STATE_WAITING;
+	    DEBUG_puts("cupsdReadClient: Set state to HTTP_STATE_WAITING "
+		       "after HEAD.");
             break;
 
 	default :
@@ -1968,19 +2044,19 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 
   switch (con->http.state)
   {
-    case HTTP_PUT_RECV :
+    case HTTP_STATE_PUT_RECV :
         do
 	{
           if ((bytes = httpRead2(HTTP(con), line, sizeof(line))) < 0)
 	  {
 	    if (con->http.error && con->http.error != EPIPE)
 	      cupsdLogMessage(CUPSD_LOG_DEBUG,
-			      "[Client %d] HTTP_PUT_RECV Closing for error "
+			      "[Client %d] HTTP_STATE_PUT_RECV Closing for error "
 			      "%d (%s)", con->http.fd, con->http.error,
 			      strerror(con->http.error));
 	    else
 	      cupsdLogMessage(CUPSD_LOG_DEBUG,
-			      "[Client %d] HTTP_PUT_RECV Closing on EOF",
+			      "[Client %d] HTTP_STATE_PUT_RECV Closing on EOF",
 			      con->http.fd);
 
 	    cupsdCloseClient(con);
@@ -2010,9 +2086,9 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
 	  }
         }
-	while (con->http.state == HTTP_PUT_RECV && data_ready(con));
+	while (con->http.state == HTTP_STATE_PUT_RECV && data_ready(con));
 
-        if (con->http.state == HTTP_WAITING)
+        if (con->http.state == HTTP_STATE_STATUS)
 	{
 	 /*
 	  * End of file, see how big it is...
@@ -2044,7 +2120,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	  * Install the configuration file...
 	  */
 
-          status = install_conf_file(con);
+          status = install_cupsd_conf(con);
 
          /*
 	  * Return the status to the client...
@@ -2058,7 +2134,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	}
         break;
 
-    case HTTP_POST_RECV :
+    case HTTP_STATE_POST_RECV :
         do
 	{
           if (con->request && con->file < 0)
@@ -2079,13 +2155,15 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
 	    else if (ipp_state != IPP_DATA)
 	    {
-              if (con->http.state == HTTP_POST_SEND)
+              if (con->http.state == HTTP_STATE_POST_SEND)
 	      {
 		cupsdSendError(con, HTTP_BAD_REQUEST, CUPSD_AUTH_NONE);
 		cupsdCloseClient(con);
 		return;
 	      }
 
+	      if (data_ready(con))
+	        continue;
 	      break;
             }
 	    else
@@ -2099,7 +2177,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 	    }
 	  }
 
-          if (con->file < 0 && con->http.state != HTTP_POST_SEND)
+          if (con->file < 0 && con->http.state != HTTP_STATE_POST_SEND)
 	  {
            /*
 	    * Create a file as needed for the request data...
@@ -2128,18 +2206,20 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
             fcntl(con->file, F_SETFD, fcntl(con->file, F_GETFD) | FD_CLOEXEC);
 	  }
 
-	  if (con->http.state != HTTP_POST_SEND)
+	  if (con->http.state != HTTP_STATE_POST_SEND)
 	  {
-            if ((bytes = httpRead2(HTTP(con), line, sizeof(line))) < 0)
+	    if (!httpWait(HTTP(con), 0))
+	      return;
+            else if ((bytes = httpRead2(HTTP(con), line, sizeof(line))) < 0)
 	    {
 	      if (con->http.error && con->http.error != EPIPE)
 		cupsdLogMessage(CUPSD_LOG_DEBUG,
-				"[Client %d] HTTP_POST_SEND Closing for "
+				"[Client %d] HTTP_STATE_POST_SEND Closing for "
 				"error %d (%s)", con->http.fd, con->http.error,
 				strerror(con->http.error));
 	      else
 		cupsdLogMessage(CUPSD_LOG_DEBUG,
-				"[Client %d] HTTP_POST_SEND Closing on EOF",
+				"[Client %d] HTTP_STATE_POST_SEND Closing on EOF",
 				con->http.fd);
 
 	      cupsdCloseClient(con);
@@ -2169,21 +2249,21 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
 		}
 	      }
 	    }
-	    else if (con->http.state == HTTP_POST_RECV)
+	    else if (con->http.state == HTTP_STATE_POST_RECV)
               return;
-	    else if (con->http.state != HTTP_POST_SEND)
+	    else if (con->http.state != HTTP_STATE_POST_SEND)
 	    {
 	      cupsdLogMessage(CUPSD_LOG_DEBUG,
 	                      "[Client %d] Closing on unexpected state %s.",
-			      con->http.fd, http_states[con->http.state]);
+			      con->http.fd, http_states[con->http.state + 1]);
 	      cupsdCloseClient(con);
 	      return;
 	    }
 	  }
         }
-	while (con->http.state == HTTP_POST_RECV && data_ready(con));
+	while (con->http.state == HTTP_STATE_POST_RECV && data_ready(con));
 
-	if (con->http.state == HTTP_POST_SEND)
+	if (con->http.state == HTTP_STATE_POST_SEND)
 	{
 	  if (con->file >= 0)
 	  {
@@ -2262,7 +2342,7 @@ cupsdReadClient(cupsd_client_t *con)	/* I - Client to read from */
         break; /* Anti-compiler-warning-code */
   }
 
-  if (con->http.state == HTTP_WAITING)
+  if (con->http.state == HTTP_STATE_WAITING)
   {
     if (!con->http.keep_alive)
     {
@@ -2329,6 +2409,9 @@ cupsdSendCommand(
   fcntl(con->file, F_SETFD, fcntl(con->file, F_GETFD) | FD_CLOEXEC);
 
   cupsdAddSelect(con->file, (cupsd_selfunc_t)write_pipe, NULL, con);
+
+  cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Waiting for CGI data.",
+		  con->http.fd);
 
   con->sent_header = 0;
   con->file_ready  = 0;
@@ -2397,7 +2480,7 @@ cupsdSendError(cupsd_client_t *con,	/* I - Connection */
     if (httpPrintf(HTTP(con), "Connection: Upgrade\r\n") < 0)
       return (0);
 
-  if (httpPrintf(HTTP(con), "Upgrade: TLS/1.0,HTTP/1.1\r\n") < 0)
+  if (httpPrintf(HTTP(con), "Upgrade: TLS/1.2,TLS/1.1,TLS/1.0\r\n") < 0)
     return (0);
 #endif /* HAVE_SSL */
 
@@ -2487,7 +2570,9 @@ cupsdSendError(cupsd_client_t *con,	/* I - Connection */
   if (cupsdFlushHeader(con) < 0)
     return (0);
 
-  con->http.state = HTTP_WAITING;
+  con->http.state = HTTP_STATE_WAITING;
+
+  DEBUG_puts("cupsdSendError: Set state to HTTP_STATE_WAITING.");
 
   return (1);
 }
@@ -2532,7 +2617,7 @@ cupsdSendHeader(
 
   httpFlushWrite(HTTP(con));
 
-  con->http.data_encoding = HTTP_ENCODE_FIELDS;
+  con->http.data_encoding = HTTP_ENCODING_FIELDS;
 
   if (httpPrintf(HTTP(con), "HTTP/%d.%d %d %s\r\n", con->http.version / 100,
                  con->http.version % 100, code, httpStatus(code)) < 0)
@@ -2714,27 +2799,27 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
   ipp_state_t	ipp_state;		/* IPP state value */
 
 
-  cupsdLogMessage(CUPSD_LOG_DEBUG2,
+  cupsdLogMessage(CUPSD_LOG_DEBUG,
 		  "[Client %d] cupsdWriteClient "
 		  "error=%d, "
 		  "used=%d, "
 		  "state=%s, "
-		  "data_encoding=HTTP_ENCODE_%s, "
+		  "data_encoding=HTTP_ENCODING_%s, "
 		  "data_remaining=" CUPS_LLFMT ", "
 		  "response=%p(%s), "
 		  "pipe_pid=%d, "
 		  "file=%d",
 		  con->http.fd, con->http.error, con->http.used,
-		  http_states[con->http.state],
-		  con->http.data_encoding == HTTP_ENCODE_CHUNKED ?
+		  http_states[con->http.state + 1],
+		  con->http.data_encoding == HTTP_ENCODING_CHUNKED ?
 		      "CHUNKED" : "LENGTH",
 		  CUPS_LLCAST con->http.data_remaining,
 		  con->response,
 		  con->response ? ipp_states[con->response->state] : "",
 		  con->pipe_pid, con->file);
 
-  if (con->http.state != HTTP_GET_SEND &&
-      con->http.state != HTTP_POST_SEND)
+  if (con->http.state != HTTP_STATE_GET_SEND &&
+      con->http.state != HTTP_STATE_POST_SEND)
   {
    /*
     * If we get called in the wrong state, then something went wrong with the
@@ -2743,7 +2828,7 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
 
     cupsdLogMessage(CUPSD_LOG_DEBUG,
 		    "[Client %d] Closing on unexpected HTTP state %s.",
-		    con->http.fd, http_states[con->http.state]);
+		    con->http.fd, http_states[con->http.state + 1]);
     cupsdCloseClient(con);
     return;
   }
@@ -2755,6 +2840,9 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
     */
 
     cupsdAddSelect(con->file, (cupsd_selfunc_t)write_pipe, NULL, con);
+
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Waiting for CGI data.",
+		    con->http.fd);
 
     if (!con->file_ready)
     {
@@ -2769,14 +2857,60 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
     con->file_ready = 0;
   }
 
+  bytes = (ssize_t)(sizeof(con->header) - (size_t)con->header_used);
+
+  if (!con->pipe_pid && bytes > con->http.data_remaining)
+  {
+   /*
+    * Limit GET bytes to original size of file (STR #3265)...
+    */
+
+    bytes = (ssize_t)con->http.data_remaining;
+  }
+
   if (con->response && con->response->state != IPP_DATA)
   {
-    ipp_state = ippWrite(HTTP(con), con->response);
-    bytes     = ipp_state != IPP_ERROR &&
-                (con->file >= 0 || ipp_state != IPP_DATA);
+    int wused = con->http.wused;	/* Previous write buffer use */
+
+    do
+    {
+     /*
+      * Write a single attribute or the IPP message header...
+      */
+
+      ipp_state = ippWrite(HTTP(con), con->response);
+
+     /*
+      * If the write buffer has been flushed, stop buffering up attributes...
+      */
+
+      if (con->http.wused <= wused)
+        break;
+    }
+    while (ipp_state != IPP_STATE_DATA && ipp_state != IPP_STATE_ERROR);
+
+    cupsdLogMessage(CUPSD_LOG_DEBUG,
+                    "[Client %d] Writing IPP response, ipp_state=%s, old "
+                    "wused=%d, new wused=%d", con->http.fd,
+                    ipp_state == IPP_STATE_ERROR ? "ERROR" :
+			ipp_state == IPP_STATE_IDLE ? "IDLE" :
+			ipp_state == IPP_STATE_HEADER ? "HEADER" :
+			ipp_state == IPP_STATE_ATTRIBUTE ? "ATTRIBUTE" : "DATA",
+		    wused, con->http.wused);
+
+    if (con->http.wused > 0)
+      httpFlushWrite(HTTP(con));
+
+    bytes = ipp_state != IPP_STATE_ERROR &&
+	    (con->file >= 0 || ipp_state != IPP_STATE_DATA);
+
+    cupsdLogMessage(CUPSD_LOG_DEBUG,
+                    "[Client %d] bytes=%d, http_state=%d, "
+                    "data_remaining=" CUPS_LLFMT,
+                    con->http.fd, (int)bytes, con->http.state,
+                    CUPS_LLCAST con->http.data_remaining);
   }
-  else if ((bytes = read(con->file, con->header + con->header_used,
-			 sizeof(con->header) - con->header_used)) > 0)
+  else if ((bytes = read(con->file, con->header + con->header_used, (size_t)bytes)) > 0)
   {
     con->header_used += bytes;
 
@@ -2875,7 +3009,7 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
 	    }
 
 	    if (con->http.version == HTTP_1_1)
-	      con->http.data_encoding = HTTP_ENCODE_CHUNKED;
+	      con->http.data_encoding = HTTP_ENCODING_CHUNKED;
           }
 	  else
 	    field_col = 0;
@@ -2903,12 +3037,12 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
 	return;
       }
 
-      if (con->http.data_encoding == HTTP_ENCODE_CHUNKED)
+      if (con->http.data_encoding == HTTP_ENCODING_CHUNKED)
         httpFlushWrite(HTTP(con));
 
       con->bytes += con->header_used;
 
-      if (con->http.state == HTTP_WAITING)
+      if (con->http.state == HTTP_STATE_WAITING)
 	bytes = 0;
       else
         bytes = con->header_used;
@@ -2918,7 +3052,8 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
   }
 
   if (bytes <= 0 ||
-      (con->http.state != HTTP_GET_SEND && con->http.state != HTTP_POST_SEND))
+      (con->http.state != HTTP_STATE_GET_SEND &&
+       con->http.state != HTTP_STATE_POST_SEND))
   {
     if (!con->sent_header && con->pipe_pid)
       cupsdSendError(con, HTTP_SERVER_ERROR, CUPSD_AUTH_NONE);
@@ -2928,7 +3063,8 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
 
       httpFlushWrite(HTTP(con));
 
-      if (con->http.data_encoding == HTTP_ENCODE_CHUNKED && con->sent_header == 1)
+      if (con->http.data_encoding == HTTP_ENCODING_CHUNKED &&
+          con->sent_header == 1)
       {
 	if (httpWrite2(HTTP(con), "", 0) < 0)
 	{
@@ -2942,9 +3078,12 @@ cupsdWriteClient(cupsd_client_t *con)	/* I - Client connection */
       }
     }
 
-    con->http.state = HTTP_WAITING;
+    con->http.state = HTTP_STATE_WAITING;
 
     cupsdAddSelect(con->http.fd, (cupsd_selfunc_t)cupsdReadClient, NULL, con);
+
+    cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Waiting for request.",
+                    con->http.fd);
 
     if (con->file >= 0)
     {
@@ -3301,14 +3440,13 @@ get_file(cupsd_client_t *con,		/* I  - Client connection */
 
 
 /*
- * 'install_conf_file()' - Install a configuration file.
+ * 'install_cupsd_conf()' - Install a configuration file.
  */
 
 static http_status_t			/* O - Status */
-install_conf_file(cupsd_client_t *con)	/* I - Connection */
+install_cupsd_conf(cupsd_client_t *con)	/* I - Connection */
 {
   char		filename[1024];		/* Configuration filename */
-  mode_t	mode;			/* Permissions */
   cups_file_t	*in,			/* Input file */
 		*out;			/* Output file */
   char		buffer[16384];		/* Copy buffer */
@@ -3330,19 +3468,14 @@ install_conf_file(cupsd_client_t *con)	/* I - Connection */
   * Open the new config file...
   */
 
-  snprintf(filename, sizeof(filename), "%s%s", ServerRoot, con->uri + 11);
-  if (!strcmp(con->uri, "/admin/conf/printers.conf"))
-    mode = ConfigFilePerm & 0600;
-  else
-    mode = ConfigFilePerm;
-
-  if ((out = cupsdCreateConfFile(filename, mode)) == NULL)
+  if ((out = cupsdCreateConfFile(ConfigurationFile, ConfigFilePerm)) == NULL)
   {
     cupsFileClose(in);
     return (HTTP_SERVER_ERROR);
   }
 
-  cupsdLogMessage(CUPSD_LOG_INFO, "Installing config file \"%s\"...", filename);
+  cupsdLogMessage(CUPSD_LOG_INFO, "Installing config file \"%s\"...",
+                  ConfigurationFile);
 
  /*
   * Copy from the request to the new config file...
@@ -3353,13 +3486,13 @@ install_conf_file(cupsd_client_t *con)	/* I - Connection */
     {
       cupsdLogMessage(CUPSD_LOG_ERROR,
                       "Unable to copy to config file \"%s\": %s",
-        	      filename, strerror(errno));
+        	      ConfigurationFile, strerror(errno));
 
       cupsFileClose(in);
       cupsFileClose(out);
 
-      snprintf(filename, sizeof(filename), "%s%s.N", ServerRoot, con->uri + 11);
-      cupsdRemoveFile(filename);
+      snprintf(filename, sizeof(filename), "%s.N", ConfigurationFile);
+      cupsdUnlinkOrRemoveFile(filename);
 
       return (HTTP_SERVER_ERROR);
     }
@@ -3370,25 +3503,21 @@ install_conf_file(cupsd_client_t *con)	/* I - Connection */
 
   cupsFileClose(in);
 
-  if (cupsdCloseCreatedConfFile(out, filename))
+  if (cupsdCloseCreatedConfFile(out, ConfigurationFile))
     return (HTTP_SERVER_ERROR);
 
  /*
   * Remove the request file...
   */
 
-  cupsdRemoveFile(con->filename);
+  cupsdUnlinkOrRemoveFile(con->filename);
   cupsdClearString(&con->filename);
 
  /*
-  * If the cupsd.conf file was updated, set the NeedReload flag...
+  * Set the NeedReload flag...
   */
 
-  if (!strcmp(con->uri, "/admin/conf/cupsd.conf"))
-    NeedReload = RELOAD_CUPSD;
-  else
-    NeedReload = RELOAD_ALL;
-
+  NeedReload = RELOAD_CUPSD;
   ReloadTime = time(NULL);
 
  /*
@@ -3562,6 +3691,14 @@ is_path_absolute(const char *path)	/* I - Input path */
     return (0);
 
  /*
+  * Check for "<" or quotes in the path and reject since this is probably
+  * someone trying to inject HTML...
+  */
+
+  if (strchr(path, '<') != NULL || strchr(path, '\"') != NULL || strchr(path, '\'') != NULL)
+    return (0);
+
+ /*
   * Check for "/.." in the path...
   */
 
@@ -3621,7 +3758,6 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
 		server_name[1024],	/* SERVER_NAME environment variable */
 		server_port[1024];	/* SERVER_PORT environment variable */
   ipp_attribute_t *attr;		/* attributes-natural-language attribute */
-  void		*ccache = NULL;		/* Kerberos credentials */
 
 
  /*
@@ -3683,7 +3819,7 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
       commptr ++;
   }
 
-  if (*commptr == '?' && con->operation == HTTP_GET && !con->query_string)
+  if (*commptr == '?' && con->operation == HTTP_STATE_GET && !con->query_string)
   {
     commptr ++;
     cupsdSetStringf(&(con->query_string), "QUERY_STRING=%s", commptr);
@@ -3776,7 +3912,7 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
 	  * the POSIX locale...
 	  */
 
-	  strcpy(lang, "LANG=C");
+	  strlcpy(lang, "LANG=C", sizeof(lang));
 	  break;
 
       case 2 :
@@ -3804,9 +3940,9 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
   else if (con->language)
     snprintf(lang, sizeof(lang), "LANG=%s.UTF8", con->language->language);
   else
-    strcpy(lang, "LANG=C");
+    strlcpy(lang, "LANG=C", sizeof(lang));
 
-  strcpy(remote_addr, "REMOTE_ADDR=");
+  strlcpy(remote_addr, "REMOTE_ADDR=", sizeof(remote_addr));
   httpAddrString(con->http.hostaddr, remote_addr + 12,
                  sizeof(remote_addr) - 12);
 
@@ -3888,7 +4024,7 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
     envp[envc ++] = http_referer;
   }
 
-  if (con->operation == HTTP_GET)
+  if (con->operation == HTTP_STATE_GET)
   {
     envp[envc ++] = "REQUEST_METHOD=GET";
 
@@ -3973,7 +4109,7 @@ pipe_command(cupsd_client_t *con,	/* I - Client connection */
     */
 
     if (con->username[0])
-      cupsdAddCert(pid, con->username, ccache);
+      cupsdAddCert(pid, con->username, con->type);
 
     cupsdLogMessage(CUPSD_LOG_DEBUG, "[CGI] Started %s (PID %d)", command, pid);
 
@@ -3994,11 +4130,27 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
 {
   cupsd_alias_t	*a;			/* Current alias */
   cupsd_netif_t	*netif;			/* Current network interface */
-  const char	*host,			/* Host field */
-		*end;			/* End character */
+  const char	*end;			/* End character */
+  char		*ptr;			/* Pointer into host value */
 
 
-  host = con->http.fields[HTTP_FIELD_HOST];
+ /*
+  * Copy the Host: header for later use...
+  */
+
+  strlcpy(con->clientname, con->http.fields[HTTP_FIELD_HOST],
+          sizeof(con->clientname));
+  if ((ptr = strrchr(con->clientname, ':')) != NULL && !strchr(ptr, ']'))
+  {
+    *ptr++ = '\0';
+    con->clientport = atoi(ptr);
+  }
+  else
+    con->clientport = con->serverport;
+
+ /*
+  * Then validate...
+  */
 
   if (httpAddrLocalhost(con->http.hostaddr))
   {
@@ -4007,61 +4159,49 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
     * addresses when accessing CUPS via the loopback interface...
     */
 
-    return (!_cups_strcasecmp(host, "localhost") ||
-            !_cups_strncasecmp(host, "localhost:", 10) ||
-	    !_cups_strcasecmp(host, "localhost.") ||
-            !_cups_strncasecmp(host, "localhost.:", 11) ||
+    return (!_cups_strcasecmp(con->clientname, "localhost") ||
+	    !_cups_strcasecmp(con->clientname, "localhost.") ||
 #ifdef __linux
-	    !_cups_strcasecmp(host, "localhost.localdomain") ||
-            !_cups_strncasecmp(host, "localhost.localdomain:", 22) ||
+	    !_cups_strcasecmp(con->clientname, "localhost.localdomain") ||
 #endif /* __linux */
-            !strcmp(host, "127.0.0.1") ||
-	    !strncmp(host, "127.0.0.1:", 10) ||
-	    !strcmp(host, "[::1]") ||
-	    !strncmp(host, "[::1]:", 6));
+            !strcmp(con->clientname, "127.0.0.1") ||
+	    !strcmp(con->clientname, "[::1]"));
   }
 
-#ifdef HAVE_DNSSD
+#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
  /*
   * Check if the hostname is something.local (Bonjour); if so, allow it.
   */
 
-  if ((end = strrchr(host, '.')) != NULL && end > host &&
-      (!end[1] || end[1] == ':'))
+  if ((end = strrchr(con->clientname, '.')) != NULL && end > con->clientname &&
+      !end[1])
   {
    /*
     * "." on end, work back to second-to-last "."...
     */
-    for (end --; end > host && *end != '.'; end --);
+
+    for (end --; end > con->clientname && *end != '.'; end --);
   }
 
   if (end && (!_cups_strcasecmp(end, ".local") ||
-	      !_cups_strncasecmp(end, ".local:", 7) ||
-	      !_cups_strcasecmp(end, ".local.") ||
-	      !_cups_strncasecmp(end, ".local.:", 8)))
+	      !_cups_strcasecmp(end, ".local.")))
     return (1);
-#endif /* HAVE_DNSSD */
+#endif /* HAVE_DNSSD || HAVE_AVAHI */
 
  /*
   * Check if the hostname is an IP address...
   */
 
-  if (isdigit(*host & 255) || *host == '[')
+  if (isdigit(con->clientname[0] & 255) || con->clientname[0] == '[')
   {
    /*
     * Possible IPv4/IPv6 address...
     */
 
-    char	temp[1024],		/* Temporary string */
-		*ptr;			/* Pointer into temporary string */
     http_addrlist_t *addrlist;		/* List of addresses */
 
 
-    strlcpy(temp, host, sizeof(temp));
-    if ((ptr = strrchr(temp, ':')) != NULL && !strchr(ptr, ']'))
-      *ptr = '\0';			/* Strip :port from host value */
-
-    if ((addrlist = httpAddrGetList(temp, AF_UNSPEC, NULL)) != NULL)
+    if ((addrlist = httpAddrGetList(con->clientname, AF_UNSPEC, NULL)) != NULL)
     {
      /*
       * Good IPv4/IPv6 address...
@@ -4087,21 +4227,20 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
     if (!strcmp(a->name, "*"))
       return (1);
 
-    if (!_cups_strncasecmp(host, a->name, a->namelen))
+    if (!_cups_strncasecmp(con->clientname, a->name, a->namelen))
     {
      /*
-      * Prefix matches; check the character at the end - it must be ":", ".",
-      * ".:", or nul...
+      * Prefix matches; check the character at the end - it must be "." or nul.
       */
 
-      end = host + a->namelen;
+      end = con->clientname + a->namelen;
 
-      if (!*end || *end == ':' || (*end == '.' && (!end[1] || end[1] == ':')))
+      if (!*end || (*end == '.' && !end[1]))
         return (1);
     }
   }
 
-#ifdef HAVE_DNSSD
+#if defined(HAVE_DNSSD) || defined(HAVE_AVAHI)
   for (a = (cupsd_alias_t *)cupsArrayFirst(DNSSDAlias);
        a;
        a = (cupsd_alias_t *)cupsArrayNext(DNSSDAlias))
@@ -4113,20 +4252,19 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
     if (!strcmp(a->name, "*"))
       return (1);
 
-    if (!_cups_strncasecmp(host, a->name, a->namelen))
+    if (!_cups_strncasecmp(con->clientname, a->name, a->namelen))
     {
      /*
-      * Prefix matches; check the character at the end - it must be ":", ".",
-      * ".:", or nul...
+      * Prefix matches; check the character at the end - it must be "." or nul.
       */
 
-      end = host + a->namelen;
+      end = con->clientname + a->namelen;
 
-      if (!*end || *end == ':' || (*end == '.' && (!end[1] || end[1] == ':')))
+      if (!*end || (*end == '.' && !end[1]))
         return (1);
     }
   }
-#endif /* HAVE_DNSSD */
+#endif /* HAVE_DNSSD || HAVE_AVAHI */
 
  /*
   * Check for interface hostname matches...
@@ -4136,16 +4274,15 @@ valid_host(cupsd_client_t *con)		/* I - Client connection */
        netif;
        netif = (cupsd_netif_t *)cupsArrayNext(NetIFList))
   {
-    if (!_cups_strncasecmp(host, netif->hostname, netif->hostlen))
+    if (!_cups_strncasecmp(con->clientname, netif->hostname, netif->hostlen))
     {
      /*
-      * Prefix matches; check the character at the end - it must be ":", ".",
-      * ".:", or nul...
+      * Prefix matches; check the character at the end - it must be "." or nul.
       */
 
-      end = host + netif->hostlen;
+      end = con->clientname + netif->hostlen;
 
-      if (!*end || *end == ':' || (*end == '.' && (!end[1] || end[1] == ':')))
+      if (!*end || (*end == '.' && !end[1]))
         return (1);
     }
   }
@@ -4194,7 +4331,7 @@ write_file(cupsd_client_t *con,		/* I - Client connection */
   if (cupsdFlushHeader(con) < 0)
     return (0);
 
-  con->http.data_encoding  = HTTP_ENCODE_LENGTH;
+  con->http.data_encoding  = HTTP_ENCODING_LENGTH;
   con->http.data_remaining = filestats->st_size;
 
   if (con->http.data_remaining <= INT_MAX)
@@ -4204,6 +4341,8 @@ write_file(cupsd_client_t *con,		/* I - Client connection */
 
   cupsdAddSelect(con->http.fd, (cupsd_selfunc_t)cupsdReadClient,
                  (cupsd_selfunc_t)cupsdWriteClient, con);
+
+  cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] Sending file.", con->http.fd);
 
   return (1);
 }
@@ -4224,9 +4363,12 @@ write_pipe(cupsd_client_t *con)		/* I - Client connection */
 
   cupsdRemoveSelect(con->file);
   cupsdAddSelect(con->http.fd, NULL, (cupsd_selfunc_t)cupsdWriteClient, con);
+
+  cupsdLogMessage(CUPSD_LOG_DEBUG, "[Client %d] CGI data ready to be sent.",
+		  con->http.fd);
 }
 
 
 /*
- * End of "$Id: client.c 10455 2012-05-07 22:41:30Z mike $".
+ * End of "$Id: client.c 11642 2014-02-27 15:57:59Z msweet $".
  */

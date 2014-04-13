@@ -1,5 +1,5 @@
 /*
- * "$Id: dir.h 9771 2011-05-12 05:21:56Z mike $"
+ * "$Id: dir.h 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Public directory definitions for CUPS.
  *
@@ -65,5 +65,5 @@ extern void		cupsDirRewind(cups_dir_t *dp) _CUPS_API_1_2;
 #endif /* !_CUPS_DIR_H_ */
 
 /*
- * End of "$Id: dir.h 9771 2011-05-12 05:21:56Z mike $".
+ * End of "$Id: dir.h 10996 2013-05-29 11:51:34Z msweet $".
  */

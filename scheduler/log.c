@@ -1,9 +1,9 @@
 /*
- * "$Id: log.c 10158 2012-01-05 05:50:57Z mike $"
+ * "$Id: log.c 11367 2013-10-28 15:35:57Z msweet $"
  *
  *   Log file routines for the CUPS scheduler.
  *
- *   Copyright 2007-2011 by Apple Inc.
+ *   Copyright 2007-2012 by Apple Inc.
  *   Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -40,6 +40,22 @@
 
 static int	log_linesize = 0;	/* Size of line for output file */
 static char	*log_line = NULL;	/* Line for output file */
+
+#ifdef HAVE_VSYSLOG
+static const int syslevels[] =		/* SYSLOG levels... */
+		{
+		  0,
+		  LOG_EMERG,
+		  LOG_ALERT,
+		  LOG_CRIT,
+		  LOG_ERR,
+		  LOG_WARNING,
+		  LOG_NOTICE,
+		  LOG_INFO,
+		  LOG_DEBUG,
+		  LOG_DEBUG
+		};
+#endif /* HAVE_VSYSLOG */
 
 
 /*
@@ -198,7 +214,7 @@ cupsdCheckLogFile(cups_file_t **lf,	/* IO - Log file */
 
     cupsFileClose(*lf);
 
-    strcpy(backname, filename);
+    strlcpy(backname, filename, sizeof(backname));
     strlcat(backname, ".O", sizeof(backname));
 
     unlink(backname);
@@ -480,12 +496,13 @@ cupsdLogJob(cupsd_job_t *job,		/* I - Job */
       */
 
       cupsd_joblog_t *temp;		/* Copy of log message */
+      size_t         log_len = strlen(log_line);
+					/* Length of log message */
 
-
-      if ((temp = malloc(sizeof(cupsd_joblog_t) + strlen(log_line))) != NULL)
+      if ((temp = malloc(sizeof(cupsd_joblog_t) + log_len)) != NULL)
       {
         temp->time = time(NULL);
-	strcpy(temp->message, log_line);
+	memcpy(temp->message, log_line, log_len + 1);
       }
 
       if (!job->history)
@@ -543,8 +560,12 @@ cupsdLogMessage(int        level,	/* I - Log level */
   if ((TestConfigFile || !ErrorLog) && level <= CUPSD_LOG_WARN)
   {
     va_start(ap, message);
+#ifdef HAVE_VSYSLOG
+    vsyslog(LOG_LPR | syslevels[level], message, ap);
+#else
     vfprintf(stderr, message, ap);
     putc('\n', stderr);
+#endif /* HAVE_VSYSLOG */
     va_end(ap);
 
     return (1);
@@ -603,7 +624,7 @@ cupsdLogPage(cupsd_job_t *job,		/* I - Job being printed */
   if (!PageLogFormat)
     return (1);
 
-  strcpy(number, "1");
+  strlcpy(number, "1", sizeof(number));
   copies = 1;
   sscanf(page, "%255s%d", number, &copies);
 
@@ -984,21 +1005,6 @@ cupsdWriteErrorLog(int        level,	/* I - Log level */
 		  'D',
 		  'd'
 		};
-#ifdef HAVE_VSYSLOG
-  static const int	syslevels[] =	/* SYSLOG levels... */
-		{
-		  0,
-		  LOG_EMERG,
-		  LOG_ALERT,
-		  LOG_CRIT,
-		  LOG_ERR,
-		  LOG_WARNING,
-		  LOG_NOTICE,
-		  LOG_INFO,
-		  LOG_DEBUG,
-		  LOG_DEBUG
-		};
-#endif /* HAVE_VSYSLOG */
 
 
 #ifdef HAVE_VSYSLOG
@@ -1098,5 +1104,5 @@ format_log_line(const char *message,	/* I - Printf-style format string */
 
 
 /*
- * End of "$Id: log.c 10158 2012-01-05 05:50:57Z mike $".
+ * End of "$Id: log.c 11367 2013-10-28 15:35:57Z msweet $".
  */

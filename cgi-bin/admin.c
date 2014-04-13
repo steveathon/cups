@@ -1,5 +1,5 @@
 /*
- * "$Id: admin.c 10431 2012-04-23 19:19:19Z mike $"
+ * "$Id: admin.c 11345 2013-10-18 21:14:52Z msweet $"
  *
  *   Administration CGI for CUPS.
  *
@@ -962,13 +962,13 @@ do_am_printer(http_t *http,		/* I - HTTP connection */
       else if (!_cups_strncasecmp(make, "laserjet", 8) ||
                !_cups_strncasecmp(make, "deskjet", 7) ||
                !_cups_strncasecmp(make, "designjet", 9))
-        strcpy(make, "HP");
+        strlcpy(make, "HP", sizeof(make));
       else if (!_cups_strncasecmp(make, "phaser", 6))
-        strcpy(make, "Xerox");
+        strlcpy(make, "Xerox", sizeof(make));
       else if (!_cups_strncasecmp(make, "stylus", 6))
-        strcpy(make, "Epson");
+        strlcpy(make, "Epson", sizeof(make));
       else
-        strcpy(make, "Generic");
+        strlcpy(make, "Generic", sizeof(make));
 
       if (!cgiGetVariable("CURRENT_MAKE"))
         cgiSetVariable("CURRENT_MAKE", make);
@@ -1348,19 +1348,19 @@ do_am_printer(http_t *http,		/* I - HTTP connection */
     ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri",
                  NULL, uri);
 
+    if (!file)
+    {
+      var = cgiGetVariable("PPD_NAME");
+      if (strcmp(var, "__no_change__"))
+	ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "ppd-name",
+		     NULL, var);
+    }
+
     ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_TEXT, "printer-location",
                  NULL, cgiGetVariable("PRINTER_LOCATION"));
 
     ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_TEXT, "printer-info",
                  NULL, cgiGetVariable("PRINTER_INFO"));
-
-    if (!file)
-    {
-      var = cgiGetVariable("PPD_NAME");
-      if (strcmp(var, "__no_change__"))
-	ippAddString(request, IPP_TAG_PRINTER, IPP_TAG_NAME, "ppd-name",
-		     NULL, var);
-    }
 
     strlcpy(uri, cgiGetVariable("DEVICE_URI"), sizeof(uri));
 
@@ -4187,7 +4187,7 @@ get_option_value(
     if (bufptr == buffer || (bufend - bufptr) < 2)
       return (NULL);
 
-    strcpy(bufptr, "}");
+    memcpy(bufptr, "}", 2);
   }
 
   return (buffer);
@@ -4218,5 +4218,5 @@ get_points(double     number,		/* I - Original number */
 
 
 /*
- * End of "$Id: admin.c 10431 2012-04-23 19:19:19Z mike $".
+ * End of "$Id: admin.c 11345 2013-10-18 21:14:52Z msweet $".
  */

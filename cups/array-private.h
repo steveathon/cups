@@ -1,9 +1,9 @@
 /*
- * "$Id: array-private.h 10034 2011-09-30 22:52:35Z mike $"
+ * "$Id: array-private.h 3933 2012-10-01 03:01:10Z msweet $"
  *
  *   Private array definitions for CUPS.
  *
- *   Copyright 2011 by Apple Inc.
+ *   Copyright 2011-2012 by Apple Inc.
  *
  *   These coded instructions, statements, and computer programs are the
  *   property of Apple Inc. and are protected by Federal copyright
@@ -37,9 +37,10 @@ extern "C" {
  * Functions...
  */
 
-extern int		_cupsArrayAddStrings(cups_array_t *a, const char *s)
-			                     _CUPS_API_1_5;
-extern cups_array_t	*_cupsArrayNewStrings(const char *s) _CUPS_API_1_5;
+extern int		_cupsArrayAddStrings(cups_array_t *a, const char *s,
+			                     char delim) _CUPS_API_1_5;
+extern cups_array_t	*_cupsArrayNewStrings(const char *s, char delim)
+			                      _CUPS_API_1_5;
 
 #  ifdef __cplusplus
 }
@@ -47,5 +48,5 @@ extern cups_array_t	*_cupsArrayNewStrings(const char *s) _CUPS_API_1_5;
 #endif /* !_CUPS_ARRAY_PRIVATE_H_ */
 
 /*
- * End of "$Id: array-private.h 10034 2011-09-30 22:52:35Z mike $".
+ * End of "$Id: array-private.h 3933 2012-10-01 03:01:10Z msweet $".
  */

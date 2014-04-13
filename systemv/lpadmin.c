@@ -1,5 +1,5 @@
 /*
- * "$Id: lpadmin.c 10104 2011-11-04 06:37:03Z mike $"
+ * "$Id: lpadmin.c 11345 2013-10-18 21:14:52Z msweet $"
  *
  *   "lpadmin" command for CUPS.
  *
@@ -1295,6 +1295,7 @@ set_printer_options(
   * Add the options...
   */
 
+  cupsEncodeOptions2(request, num_options, options, IPP_TAG_OPERATION);
   cupsEncodeOptions2(request, num_options, options, IPP_TAG_PRINTER);
 
   if ((protocol = cupsGetOption("protocol", num_options, options)) != NULL)
@@ -1514,5 +1515,5 @@ validate_name(const char *name)		/* I - Name to check */
 
 
 /*
- * End of "$Id: lpadmin.c 10104 2011-11-04 06:37:03Z mike $".
+ * End of "$Id: lpadmin.c 11345 2013-10-18 21:14:52Z msweet $".
  */

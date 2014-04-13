@@ -1,5 +1,5 @@
 /*
- * "$Id: html.c 9449 2011-01-08 00:56:50Z mike $"
+ * "$Id: html.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   HTML support functions for CUPS.
  *
@@ -235,5 +235,5 @@ cgi_null_passwd(const char *prompt)	/* I - Prompt string (unused) */
 
 
 /*
- * End of "$Id: html.c 9449 2011-01-08 00:56:50Z mike $".
+ * End of "$Id: html.c 10996 2013-05-29 11:51:34Z msweet $".
  */

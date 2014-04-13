@@ -1,9 +1,9 @@
 /*
- * "$Id: cupsd.h 10490 2012-05-21 17:40:22Z mike $"
+ * "$Id: cupsd.h 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Main header file for the CUPS scheduler.
  *
- *   Copyright 2007-2012 by Apple Inc.
+ *   Copyright 2007-2013 by Apple Inc.
  *   Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -160,13 +160,6 @@ VAR int			NeedReload	VALUE(RELOAD_ALL),
 VAR void		*DefaultProfile	VALUE(0);
 					/* Default security profile */
 
-#ifdef HAVE_GSSAPI
-VAR int			KerberosInitialized	VALUE(0);
-					/* Has Kerberos been initialized? */
-VAR krb5_context	KerberosContext VALUE(NULL);
-					/* Kerberos context for credentials */
-#endif /* HAVE_GSSAPI */
-
 #ifdef HAVE_LAUNCH_H
 VAR int			Launchd		VALUE(0);
 					/* Running from launchd */
@@ -194,6 +187,7 @@ extern cups_file_t	*cupsdCreateConfFile(const char *filename, mode_t mode);
 extern cups_file_t	*cupsdOpenConfFile(const char *filename);
 extern int		cupsdOpenPipe(int *fds);
 extern int		cupsdRemoveFile(const char *filename);
+extern int		cupsdUnlinkOrRemoveFile(const char *filename);
 
 /* main.c */
 extern int		cupsdAddString(cups_array_t **a, const char *s);
@@ -237,5 +231,5 @@ extern void		cupsdStopServer(void);
 
 
 /*
- * End of "$Id: cupsd.h 10490 2012-05-21 17:40:22Z mike $".
+ * End of "$Id: cupsd.h 10996 2013-05-29 11:51:34Z msweet $".
  */

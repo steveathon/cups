@@ -1,5 +1,5 @@
 /*
- * "$Id: var.c 10346 2012-03-12 15:37:13Z mike $"
+ * "$Id: var.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   CGI form variable and array functions for CUPS.
  *
@@ -1307,5 +1307,5 @@ cgi_unlink_file(void)
 
 
 /*
- * End of "$Id: var.c 10346 2012-03-12 15:37:13Z mike $".
+ * End of "$Id: var.c 10996 2013-05-29 11:51:34Z msweet $".
  */

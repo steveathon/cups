@@ -1,5 +1,5 @@
 /*
- * "$Id: tls-gnutls.c 10374 2012-03-22 20:30:20Z mike $"
+ * "$Id: tls-gnutls.c 3755 2012-03-30 05:59:14Z msweet $"
  *
  *   TLS support code for the CUPS scheduler using GNU TLS.
  *
@@ -288,5 +288,5 @@ make_certificate(cupsd_client_t *con)	/* I - Client connection */
 
 
 /*
- * End of "$Id: tls-gnutls.c 10374 2012-03-22 20:30:20Z mike $".
+ * End of "$Id: tls-gnutls.c 3755 2012-03-30 05:59:14Z msweet $".
  */

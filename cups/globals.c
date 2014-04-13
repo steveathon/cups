@@ -1,9 +1,9 @@
 /*
- * "$Id: globals.c 10435 2012-04-23 21:49:48Z mike $"
+ * "$Id: globals.c 11113 2013-07-10 14:08:39Z msweet $"
  *
  *   Global variable access routines for CUPS.
  *
- *   Copyright 2007-2012 by Apple Inc.
+ *   Copyright 2007-2013 by Apple Inc.
  *   Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -38,6 +38,10 @@
  */
 
 
+#ifdef DEBUG
+static int		cups_global_index = 0;
+					/* Next thread number */
+#endif /* DEBUG */
 static _cups_threadkey_t cups_globals_key = _CUPS_THREADKEY_INITIALIZER;
 					/* Thread local storage key */
 #ifdef HAVE_PTHREAD_H
@@ -210,11 +214,19 @@ cups_globals_alloc(void)
   */
 
   memset(cg, 0, sizeof(_cups_globals_t));
-  cg->encryption    = (http_encryption_t)-1;
-  cg->password_cb   = (cups_password_cb2_t)_cupsGetPassword;
-  cg->any_root      = 1;
-  cg->expired_certs = 1;
-  cg->expired_root  = 1;
+  cg->encryption     = (http_encryption_t)-1;
+  cg->password_cb    = (cups_password_cb2_t)_cupsGetPassword;
+  cg->any_root       = 1;
+  cg->expired_certs  = 1;
+  cg->expired_root   = 1;
+
+#ifdef DEBUG
+ /*
+  * Friendly thread ID for debugging...
+  */
+
+  cg->thread_id = ++ cups_global_index;
+#endif /* DEBUG */
 
  /*
   * Then set directories as appropriate...
@@ -227,7 +239,7 @@ cups_globals_alloc(void)
     * Open the registry...
     */
 
-    strcpy(installdir, "C:/Program Files/cups.org");
+    strlcpy(installdir, "C:/Program Files/cups.org", sizeof(installdir));
 
     if (!RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\cups.org", 0, KEY_READ,
                       &key))
@@ -380,5 +392,5 @@ cups_globals_init(void)
 
 
 /*
- * End of "$Id: globals.c 10435 2012-04-23 21:49:48Z mike $".
+ * End of "$Id: globals.c 11113 2013-07-10 14:08:39Z msweet $".
  */

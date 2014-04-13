@@ -1,5 +1,5 @@
 /*
- * "$Id: rastertoepson.c 10430 2012-04-23 18:07:59Z mike $"
+ * "$Id: rastertoepson.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   EPSON ESC/P and ESC/P2 filter for CUPS.
  *
@@ -1153,5 +1153,5 @@ main(int  argc,				/* I - Number of command-line arguments */
 
 
 /*
- * End of "$Id: rastertoepson.c 10430 2012-04-23 18:07:59Z mike $".
+ * End of "$Id: rastertoepson.c 10996 2013-05-29 11:51:34Z msweet $".
  */

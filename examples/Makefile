@@ -1,5 +1,5 @@
 #
-# "$Id: Makefile 9771 2011-05-12 05:21:56Z mike $"
+# "$Id: Makefile 3247 2011-05-12 06:22:31Z msweet $"
 #
 #   PPD compiler example makefile for CUPS.
 #
@@ -124,5 +124,5 @@ uninstall:
 
 
 #
-# End of "$Id: Makefile 9771 2011-05-12 05:21:56Z mike $".
+# End of "$Id: Makefile 3247 2011-05-12 06:22:31Z msweet $".
 #

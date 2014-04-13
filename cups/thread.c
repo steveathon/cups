@@ -1,5 +1,5 @@
 /*
- * "$Id: thread.c 10435 2012-04-23 21:49:48Z mike $"
+ * "$Id: thread.c 11642 2014-02-27 15:57:59Z msweet $"
  *
  *   Threading primitives for CUPS.
  *
@@ -10,6 +10,8 @@
  *   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
  *   which should have been included with this file.  If this file is
  *   file is missing or damaged, see the license at "http://www.cups.org/".
+ *
+ *   This file is subject to the Apple OS-Developed Software exception.
  *
  * Contents:
  *
@@ -332,5 +334,5 @@ _cupsThreadCreate(
 
 
 /*
- * End of "$Id: thread.c 10435 2012-04-23 21:49:48Z mike $".
+ * End of "$Id: thread.c 11642 2014-02-27 15:57:59Z msweet $".
  */

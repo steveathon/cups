@@ -1,5 +1,5 @@
 /*
- * "$Id: ppdx.c 10459 2012-05-09 22:34:27Z mike $"
+ * "$Id: ppdx.c 3833 2012-05-23 22:51:18Z msweet $"
  *
  *   Example code for encoding and decoding large amounts of data in a PPD file.
  *   This would typically be used in a driver to save configuration/state
@@ -310,5 +310,5 @@ ppdxWriteData(const char *name,		/* I - Base name of keyword */
 
 
 /*
- * End of "$Id: ppdx.c 10459 2012-05-09 22:34:27Z mike $".
+ * End of "$Id: ppdx.c 3833 2012-05-23 22:51:18Z msweet $".
  */

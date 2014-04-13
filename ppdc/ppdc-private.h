@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc-private.h 9042 2010-03-24 00:45:34Z mike $"
+// "$Id: ppdc-private.h 1992 2010-03-24 14:32:08Z msweet $"
 //
 //   Private definitions for the CUPS PPD Compiler.
 //
@@ -36,5 +36,5 @@
 #endif // !_PPDC_PRIVATE_H_
 
 //
-// End of "$Id: ppdc-private.h 9042 2010-03-24 00:45:34Z mike $".
+// End of "$Id: ppdc-private.h 1992 2010-03-24 14:32:08Z msweet $".
 //

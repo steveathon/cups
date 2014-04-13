@@ -1,5 +1,5 @@
 #
-# "$Id: Makefile 10191 2012-01-20 19:00:32Z mike $"
+# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
 #
 #   Berkeley commands makefile for CUPS.
 #
@@ -88,6 +88,7 @@ install-exec:
 		$(INSTALL_DIR) $(SYMROOT); \
 		for file in $(TARGETS); do \
 			cp $$file $(SYMROOT); \
+			dsymutil $(SYMROOT)/$$file; \
 		done \
 	fi
 
@@ -163,5 +164,5 @@ include Dependencies
 
 
 #
-# End of "$Id: Makefile 10191 2012-01-20 19:00:32Z mike $".
+# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
 #
