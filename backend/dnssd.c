@@ -1,5 +1,5 @@
 /*
- * "$Id: dnssd.c 10489 2012-05-21 16:05:58Z mike $"
+ * "$Id: dnssd.c 11623 2014-02-19 20:18:10Z msweet $"
  *
  *   DNS-SD discovery backend for CUPS.
  *
@@ -95,6 +95,7 @@ static int		job_canceled = 0;
 static AvahiSimplePoll	*simple_poll = NULL;
 					/* Poll information */
 static int		got_data = 0;	/* Got data from poll? */
+static int		browsers = 0;	/* Number of running browsers */
 #endif /* HAVE_AVAHI */
 
 
@@ -345,6 +346,7 @@ main(int  argc,				/* I - Number of command-line args */
     return (1);
   }
 
+  browsers = 6;
   avahi_service_browser_new(client, AVAHI_IF_UNSPEC,
 			    AVAHI_PROTO_UNSPEC,
 			    "_fax-ipp._tcp", NULL, 0,
@@ -558,7 +560,11 @@ main(int  argc,				/* I - Number of command-line args */
 
       fprintf(stderr, "DEBUG: sent=%d, count=%d\n", sent, count);
 
+#ifdef HAVE_AVAHI
+      if (sent == cupsArrayCount(devices) && browsers == 0)
+#else
       if (sent == cupsArrayCount(devices))
+#endif /* HAVE_AVAHI */
 	break;
     }
   }
@@ -710,9 +716,12 @@ browse_callback(
 	break;
 
     case AVAHI_BROWSER_REMOVE:
-    case AVAHI_BROWSER_ALL_FOR_NOW:
     case AVAHI_BROWSER_CACHE_EXHAUSTED:
         break;
+
+    case AVAHI_BROWSER_ALL_FOR_NOW:
+	browsers--;
+	break;
   }
 }
 
@@ -1031,6 +1040,7 @@ query_callback(
 		value[256],		/* Value string */
 		make_and_model[512],	/* Manufacturer and model */
 		model[256],		/* Model */
+		pdl[256],		/* PDL */
 		device_id[2048];	/* 1284 device ID */
 
 
@@ -1079,8 +1089,9 @@ query_callback(
 
   device_id[0]      = '\0';
   make_and_model[0] = '\0';
+  pdl[0]            = '\0';
 
-  strcpy(model, "Unknown");
+  strlcpy(model, "Unknown", sizeof(model));
 
   for (data = rdata, dataend = data + rdlen;
        data < dataend;
@@ -1134,9 +1145,9 @@ query_callback(
 
     if (!_cups_strcasecmp(key, "usb_MFG") || !_cups_strcasecmp(key, "usb_MANU") ||
 	!_cups_strcasecmp(key, "usb_MANUFACTURER"))
-      strcpy(make_and_model, value);
+      strlcpy(make_and_model, value, sizeof(make_and_model));
     else if (!_cups_strcasecmp(key, "usb_MDL") || !_cups_strcasecmp(key, "usb_MODEL"))
-      strcpy(model, value);
+      strlcpy(model, value, sizeof(model));
     else if (!_cups_strcasecmp(key, "product") && !strstr(value, "Ghostscript"))
     {
       if (value[0] == '(')
@@ -1148,18 +1159,20 @@ query_callback(
 	if ((ptr = value + strlen(value) - 1) > value && *ptr == ')')
 	  *ptr = '\0';
 
-	strcpy(model, value + 1);
+	strlcpy(model, value + 1, sizeof(model));
       }
       else
-	strcpy(model, value);
+	strlcpy(model, value, sizeof(model));
     }
     else if (!_cups_strcasecmp(key, "ty"))
     {
-      strcpy(model, value);
+      strlcpy(model, value, sizeof(model));
 
       if ((ptr = strchr(model, ',')) != NULL)
 	*ptr = '\0';
     }
+    else if (!_cups_strcasecmp(key, "pdl"))
+      strlcpy(pdl, value, sizeof(pdl));
     else if (!_cups_strcasecmp(key, "priority"))
       device->priority = atoi(value);
     else if ((device->type == CUPS_DEVICE_IPP ||
@@ -1202,6 +1215,46 @@ query_callback(
       snprintf(device_id, sizeof(device_id), "MFG:%s;MDL:%s",
 	       make_and_model, ptr + 1);
     }
+  }
+
+  if (device_id[0] &&
+      !strstr(device_id, "CMD:") &&
+      !strstr(device_id, "COMMAND SET:") &&
+      (strstr(pdl, "application/pdf") ||
+       strstr(pdl, "application/postscript") ||
+       strstr(pdl, "application/vnd.hp-PCL") ||
+       strstr(pdl, "image/")))
+  {
+    value[0] = '\0';
+    if (strstr(pdl, "application/pdf"))
+      strlcat(value, ",PDF", sizeof(value));
+    if (strstr(pdl, "application/postscript"))
+      strlcat(value, ",PS", sizeof(value));
+    if (strstr(pdl, "application/vnd.hp-PCL"))
+      strlcat(value, ",PCL", sizeof(value));
+    for (ptr = strstr(pdl, "image/"); ptr; ptr = strstr(ptr, "image/"))
+    {
+      char *valptr = value + strlen(value);
+      					/* Pointer into value */
+
+      if (valptr < (value + sizeof(value) - 1))
+        *valptr++ = ',';
+
+      ptr += 6;
+      while (isalnum(*ptr & 255) || *ptr == '-' || *ptr == '.')
+      {
+        if (isalnum(*ptr & 255) && valptr < (value + sizeof(value) - 1))
+          *valptr++ = toupper(*ptr++ & 255);
+        else
+          break;
+      }
+
+      *valptr = '\0';
+    }
+
+    ptr = device_id + strlen(device_id);
+    snprintf(ptr, sizeof(device_id) - (ptr - device_id), "CMD:%s;",
+	     value + 1);
   }
 
   if (device_id[0])
@@ -1276,5 +1329,5 @@ unquote(char       *dst,		/* I - Destination buffer */
 
 
 /*
- * End of "$Id: dnssd.c 10489 2012-05-21 16:05:58Z mike $".
+ * End of "$Id: dnssd.c 11623 2014-02-19 20:18:10Z msweet $".
  */

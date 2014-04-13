@@ -1,5 +1,5 @@
 dnl
-dnl "$Id: cups-sharedlibs.m4 10190 2012-01-20 16:22:58Z mike $"
+dnl "$Id: cups-sharedlibs.m4 7630 2008-06-09 22:31:44Z mike $"
 dnl
 dnl   Shared library support for CUPS.
 dnl
@@ -215,8 +215,8 @@ if test "$DSO" != ":"; then
 				EXPORT_LDFLAGS="-Wl,-R$libdir"
 			fi
 			;;
-                IRIX | Linux | GNU)
-                        # IRIX, Linux, and HURD...
+                Linux | GNU)
+                        # Linux, and HURD...
 			if test $exec_prefix != /usr; then
 				DSOFLAGS="-Wl,-rpath,$libdir $DSOFLAGS"
 				LDFLAGS="$LDFLAGS -Wl,-rpath,$libdir"
@@ -234,5 +234,5 @@ AC_SUBST(IMGLIBS)
 AC_SUBST(EXPORT_LDFLAGS)
 
 dnl
-dnl End of "$Id: cups-sharedlibs.m4 10190 2012-01-20 16:22:58Z mike $".
+dnl End of "$Id: cups-sharedlibs.m4 7630 2008-06-09 22:31:44Z mike $".
 dnl

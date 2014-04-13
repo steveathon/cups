@@ -1,5 +1,5 @@
 #
-# "$Id: Makefile 9926 2011-08-27 09:23:01Z mike $"
+# "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $"
 #
 #   Datafile makefile for CUPS.
 #
@@ -146,5 +146,5 @@ uninstall:
 
 
 #
-# End of "$Id: Makefile 9926 2011-08-27 09:23:01Z mike $".
+# End of "$Id: Makefile 10996 2013-05-29 11:51:34Z msweet $".
 #

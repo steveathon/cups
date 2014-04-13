@@ -1,5 +1,5 @@
 dnl
-dnl "$Id: cups-ssl.m4 10521 2012-06-15 22:23:24Z mike $"
+dnl "$Id: cups-ssl.m4 7241 2008-01-22 22:34:52Z mike $"
 dnl
 dnl   OpenSSL/GNUTLS stuff for CUPS.
 dnl
@@ -27,6 +27,8 @@ AC_ARG_WITH(openssl-includes, [  --with-openssl-includes set directory for OpenS
 SSLFLAGS=""
 SSLLIBS=""
 have_ssl=0
+CUPS_SERVERCERT=""
+CUPS_SERVERKEY=""
 
 if test x$enable_ssl != xno; then
     dnl Look for CDSA...
@@ -36,6 +38,7 @@ if test x$enable_ssl != xno; then
 	    	have_ssl=1
 		AC_DEFINE(HAVE_SSL)
 		AC_DEFINE(HAVE_CDSASSL)
+		CUPS_SERVERCERT="/Library/Keychains/System.keychain"
 
 		dnl Check for the various security headers...
 		AC_CHECK_HEADER(Security/SecureTransportPriv.h,
@@ -56,34 +59,7 @@ if test x$enable_ssl != xno; then
 		AC_CHECK_HEADER(Security/SecIdentitySearchPriv.h,
 		    AC_DEFINE(HAVE_SECIDENTITYSEARCHPRIV_H))
 
-		dnl Check for SecCertificateCopyData..
-		AC_MSG_CHECKING(for SecCertificateCopyData)
-		if test $uversion -ge 100; then
-		    AC_DEFINE(HAVE_SECCERTIFICATECOPYDATA)
-		    AC_MSG_RESULT(yes)
-		else
-		    AC_MSG_RESULT(no)
-		fi
-
-		dnl Check for SecIdentitySearchCreateWithPolicy...
-		AC_MSG_CHECKING(for SecIdentitySearchCreateWithPolicy)
-		if test $uversion -ge 80; then
-		    AC_DEFINE(HAVE_SECIDENTITYSEARCHCREATEWITHPOLICY)
-		    AC_MSG_RESULT(yes)
-		else
-		    AC_MSG_RESULT(no)
-		fi
-
-		dnl Check for SecPolicyCreateSSL...
-		AC_MSG_CHECKING(for SecPolicyCreateSSL)
-		if test $uversion -ge 110; then
-		    AC_DEFINE(HAVE_SECPOLICYCREATESSL)
-		    AC_MSG_RESULT(yes)
-		else
-		    AC_MSG_RESULT(no)
-		fi])
-
-		AC_DEFINE(HAVE_CSSMERRORSTRING)
+		AC_DEFINE(HAVE_CSSMERRORSTRING)])
 	fi
     fi
 
@@ -106,6 +82,9 @@ if test x$enable_ssl != xno; then
 	fi
 
 	if test $have_ssl = 1; then
+	    CUPS_SERVERCERT="ssl/server.crt"
+	    CUPS_SERVERKEY="ssl/server.key"
+
             if $PKGCONFIG --exists gcrypt; then
 	        SSLLIBS="$SSLLIBS `$PKGCONFIG --libs gcrypt`"
 	        SSLFLAGS="$SSLFLAGS `$PKGCONFIG --cflags gcrypt`"
@@ -148,6 +127,9 @@ if test x$enable_ssl != xno; then
 	    done
 
 	    if test "x${SSLLIBS}" != "x"; then
+		CUPS_SERVERCERT="ssl/server.crt"
+		CUPS_SERVERKEY="ssl/server.key"
+
 		LIBS="$SAVELIBS $SSLLIBS"
 		AC_CHECK_FUNCS(SSL_set_tlsext_host_name)
 	    fi
@@ -165,6 +147,8 @@ elif test x$enable_cdsa = xyes -o x$enable_gnutls = xyes -o x$enable_openssl = x
     AC_MSG_ERROR([Unable to enable SSL support.])
 fi
 
+AC_SUBST(CUPS_SERVERCERT)
+AC_SUBST(CUPS_SERVERKEY)
 AC_SUBST(IPPALIASES)
 AC_SUBST(SSLFLAGS)
 AC_SUBST(SSLLIBS)
@@ -173,5 +157,5 @@ EXPORT_SSLLIBS="$SSLLIBS"
 AC_SUBST(EXPORT_SSLLIBS)
 
 dnl
-dnl End of "$Id: cups-ssl.m4 10521 2012-06-15 22:23:24Z mike $".
+dnl End of "$Id: cups-ssl.m4 7241 2008-01-22 22:34:52Z mike $".
 dnl

@@ -1,9 +1,9 @@
 /*
- * "$Id: adminutil.h 10104 2011-11-04 06:37:03Z mike $"
+ * "$Id: adminutil.h 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Administration utility API definitions for CUPS.
  *
- *   Copyright 2007-2011 by Apple Inc.
+ *   Copyright 2007-2012 by Apple Inc.
  *   Copyright 2001-2007 by Easy Software Products.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -55,16 +55,19 @@ extern int	cupsAdminExportSamba(const char *dest, const char *ppd,
 		                     const char *samba_server,
 			             const char *samba_user,
 				     const char *samba_password,
-				     FILE *logfile) _CUPS_API_1_2;
+				     FILE *logfile) _CUPS_DEPRECATED;
 extern char	*cupsAdminCreateWindowsPPD(http_t *http, const char *dest,
-		                           char *buffer, int bufsize) _CUPS_API_1_2;
+		                           char *buffer, int bufsize)
+		                           _CUPS_DEPRECATED;
 
 extern int	cupsAdminGetServerSettings(http_t *http,
 			                   int *num_settings,
-		                           cups_option_t **settings) _CUPS_API_1_3;
+		                           cups_option_t **settings)
+		                           _CUPS_API_1_3;
 extern int	cupsAdminSetServerSettings(http_t *http,
 		                           int num_settings,
-		                           cups_option_t *settings) _CUPS_API_1_3;
+		                           cups_option_t *settings)
+		                           _CUPS_API_1_3;
 
 
 #  ifdef __cplusplus
@@ -74,5 +77,5 @@ extern int	cupsAdminSetServerSettings(http_t *http,
 #endif /* !_CUPS_ADMINUTIL_H_ */
 
 /*
- * End of "$Id: adminutil.h 10104 2011-11-04 06:37:03Z mike $".
+ * End of "$Id: adminutil.h 10996 2013-05-29 11:51:34Z msweet $".
  */

@@ -1,5 +1,5 @@
 /*
- * "$Id: backend-private.h 10329 2012-03-05 23:18:31Z mike $"
+ * "$Id: backend-private.h 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Backend support definitions for CUPS.
  *
@@ -334,5 +334,5 @@ extern int		backendWaitLoop(int snmp_fd, http_addr_t *addr,
 
 
 /*
- * End of "$Id: backend-private.h 10329 2012-03-05 23:18:31Z mike $".
+ * End of "$Id: backend-private.h 10996 2013-05-29 11:51:34Z msweet $".
  */

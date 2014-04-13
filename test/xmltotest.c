@@ -1,5 +1,5 @@
 /*
- * "$Id: xmltotest.c 10192 2012-01-20 21:49:02Z mike $"
+ * "$Id: xmltotest.c 3643 2012-02-13 16:35:48Z msweet $"
  *
  *   IANA XML registration to test file generator for CUPS.
  *
@@ -525,5 +525,5 @@ main(void)
 
 
 /*
- * End of "$Id: xmltotest.c 10192 2012-01-20 21:49:02Z mike $".
+ * End of "$Id: xmltotest.c 3643 2012-02-13 16:35:48Z msweet $".
  */

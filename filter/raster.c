@@ -1,5 +1,5 @@
 /*
- * "$Id: raster.c 10424 2012-04-23 17:26:57Z mike $"
+ * "$Id: raster.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Raster file routines for CUPS.
  *
@@ -46,6 +46,9 @@
  */
 
 #include <cups/raster-private.h>
+#ifdef HAVE_STDINT_H
+#  include <stdint.h>
+#endif /* HAVE_STDINT_H */
 
 
 /*
@@ -1472,5 +1475,5 @@ cups_write_fd(void          *ctx,	/* I - File descriptor pointer */
 
 
 /*
- * End of "$Id: raster.c 10424 2012-04-23 17:26:57Z mike $".
+ * End of "$Id: raster.c 10996 2013-05-29 11:51:34Z msweet $".
  */

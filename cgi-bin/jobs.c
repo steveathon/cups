@@ -1,5 +1,5 @@
 /*
- * "$Id: jobs.c 10431 2012-04-23 19:19:19Z mike $"
+ * "$Id: jobs.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Job status CGI for CUPS.
  *
@@ -182,7 +182,7 @@ do_job_op(http_t      *http,		/* I - HTTP connection */
     char	url[1024];		/* Encoded URL */
 
 
-    strcpy(url, "5;URL=");
+    strlcpy(url, "5;URL=", sizeof(url));
     cgiFormEncode(url + 6, getenv("HTTP_REFERER"), sizeof(url) - 6);
     cgiSetVariable("refresh_page", url);
   }
@@ -210,5 +210,5 @@ do_job_op(http_t      *http,		/* I - HTTP connection */
 
 
 /*
- * End of "$Id: jobs.c 10431 2012-04-23 19:19:19Z mike $".
+ * End of "$Id: jobs.c 10996 2013-05-29 11:51:34Z msweet $".
  */

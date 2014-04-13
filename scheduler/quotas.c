@@ -1,5 +1,5 @@
 /*
- * "$Id: quotas.c 9793 2011-05-20 03:49:49Z mike $"
+ * "$Id: quotas.c 10996 2013-05-29 11:51:34Z msweet $"
  *
  *   Quota routines for the CUPS scheduler.
  *
@@ -240,5 +240,5 @@ compare_quotas(const cupsd_quota_t *q1,	/* I - First quota record */
 
 
 /*
- * End of "$Id: quotas.c 9793 2011-05-20 03:49:49Z mike $".
+ * End of "$Id: quotas.c 10996 2013-05-29 11:51:34Z msweet $".
  */

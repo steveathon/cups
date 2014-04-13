@@ -1,9 +1,9 @@
 /*
- * "$Id: config.h.in 10548 2012-07-16 18:21:43Z mike $"
+ * "$Id: config.h.in 11642 2014-02-27 15:57:59Z msweet $"
  *
  *   Configuration file for CUPS.
  *
- *   Copyright 2007-2012 by Apple Inc.
+ *   Copyright 2007-2013 by Apple Inc.
  *   Copyright 1997-2007 by Easy Software Products.
  *
  *   These coded instructions, statements, and computer programs are the
@@ -32,6 +32,7 @@
 #define CUPS_DEFAULT_GROUP	"sys"
 #define CUPS_DEFAULT_SYSTEM_GROUPS	"sys root system"
 #define CUPS_DEFAULT_PRINTOPERATOR_AUTH	"@SYSTEM"
+#define CUPS_DEFAULT_SYSTEM_AUTHKEY	"system.print.admin"
 
 
 /*
@@ -131,13 +132,11 @@
 
 
 /*
- * Do we have various image libraries?
+ * Do we have ZLIB?
  */
 
-#undef HAVE_LIBPNG
 #undef HAVE_LIBZ
-#undef HAVE_LIBJPEG
-#undef HAVE_LIBTIFF
+#undef HAVE_INFLATECOPY
 
 
 /*
@@ -168,10 +167,10 @@
 
 
 /*
- * Do we have <scsi/sg.h>?
+ * Use <stdint.h>?
  */
 
-#undef HAVE_SCSI_SG_H
+#undef HAVE_STDINT_H
 
 
 /*
@@ -315,34 +314,6 @@
 #undef HAVE_SECPOLICY_H
 #undef HAVE_SECPOLICYPRIV_H
 #undef HAVE_SECURETRANSPORTPRIV_H
-
-
-/*
- * Do we have the SecCertificateCopyData function?
- */
-
-#undef HAVE_SECCERTIFICATECOPYDATA
-
-
-/*
- * Do we have the SecIdentitySearchCreateWithPolicy function?
- */
-
-#undef HAVE_SECIDENTITYSEARCHCREATEWITHPOLICY
-
-
-/*
- * Do we have the SecPolicyCreateSSL function?
- */
-
-#undef HAVE_SECPOLICYCREATESSL
-
-
-/*
- * Do we have the SecPolicyCreateSSL function?
- */
-
-#undef HAVE_SECPOLICYCREATESSL
 
 
 /*
@@ -564,6 +535,7 @@
 
 #undef HAVE_DBUS
 #undef HAVE_DBUS_MESSAGE_ITER_INIT_APPEND
+#undef HAVE_DBUS_THREADS_INIT
 
 
 /*
@@ -575,11 +547,8 @@
 #undef HAVE_GSS_GSSAPI_H
 #undef HAVE_GSS_GSSAPI_SPI_H
 #undef HAVE_GSSAPI
-#undef HAVE_GSSAPI_GENERIC_H
 #undef HAVE_GSSAPI_GSSAPI_H
 #undef HAVE_GSSAPI_H
-#undef HAVE_GSSAPI_KRB5_H
-#undef HAVE_KRB5_H
 
 
 /*
@@ -738,5 +707,5 @@ static __inline int _cups_abs(int i) { return (i < 0 ? -i : i); }
 #endif /* !_CUPS_CONFIG_H_ */
 
 /*
- * End of "$Id: config.h.in 10548 2012-07-16 18:21:43Z mike $".
+ * End of "$Id: config.h.in 11642 2014-02-27 15:57:59Z msweet $".
  */

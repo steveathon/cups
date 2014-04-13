@@ -1,16 +1,16 @@
 dnl
-dnl "$Id: cups-compiler.m4 10190 2012-01-20 16:22:58Z mike $"
+dnl "$Id: cups-compiler.m4 7871 2008-08-27 21:12:43Z mike $"
 dnl
-dnl   Compiler stuff for CUPS.
+dnl Compiler stuff for CUPS.
 dnl
-dnl   Copyright 2007-2012 by Apple Inc.
-dnl   Copyright 1997-2007 by Easy Software Products, all rights reserved.
+dnl Copyright 2007-2014 by Apple Inc.
+dnl Copyright 1997-2007 by Easy Software Products, all rights reserved.
 dnl
-dnl   These coded instructions, statements, and computer programs are the
-dnl   property of Apple Inc. and are protected by Federal copyright
-dnl   law.  Distribution and use rights are outlined in the file "LICENSE.txt"
-dnl   which should have been included with this file.  If this file is
-dnl   file is missing or damaged, see the license at "http://www.cups.org/".
+dnl These coded instructions, statements, and computer programs are the
+dnl property of Apple Inc. and are protected by Federal copyright
+dnl law.  Distribution and use rights are outlined in the file "LICENSE.txt"
+dnl which should have been included with this file.  If this file is
+dnl file is missing or damaged, see the license at "http://www.cups.org/".
 dnl
 
 dnl Clear the debugging and non-shared library options unless the user asks
@@ -114,29 +114,43 @@ if test -n "$GCC"; then
 	OLDCFLAGS="$CFLAGS"
 	CFLAGS="$CFLAGS -fstack-protector"
 	AC_TRY_LINK(,,
-		OPTIM="$OPTIM -fstack-protector"
+		if test "x$LSB_BUILD" = xy; then
+			# Can't use stack-protector with LSB binaries...
+			OPTIM="$OPTIM -fno-stack-protector"
+		else
+			OPTIM="$OPTIM -fstack-protector"
+		fi
 		AC_MSG_RESULT(yes),
 		AC_MSG_RESULT(no))
 	CFLAGS="$OLDCFLAGS"
 
-	# The -fPIE option is available with some versions of GCC and adds
-	# randomization of addresses, which avoids another class of exploits
-	# that depend on a fixed address for common functions.
-	AC_MSG_CHECKING(if GCC supports -fPIE)
-	OLDCFLAGS="$CFLAGS"
-	CFLAGS="$CFLAGS -fPIE"
-	AC_TRY_COMPILE(,,
-		[case "$CC" in
-			*clang)
-				PIEFLAGS="-fPIE -Wl,-pie"
+	if test "x$LSB_BUILD" != xy; then
+		# The -fPIE option is available with some versions of GCC and
+		# adds randomization of addresses, which avoids another class of
+		# exploits that depend on a fixed address for common functions.
+		#
+		# Not available to LSB binaries...
+		AC_MSG_CHECKING(if GCC supports -fPIE)
+		OLDCFLAGS="$CFLAGS"
+		case "$uname" in
+			Darwin*)
+				CFLAGS="$CFLAGS -fPIE -Wl,-pie"
+				AC_TRY_COMPILE(,,[
+					PIEFLAGS="-fPIE -Wl,-pie"
+					AC_MSG_RESULT(yes)],
+					AC_MSG_RESULT(no))
 				;;
+
 			*)
-				PIEFLAGS="-fPIE -pie"
+				CFLAGS="$CFLAGS -fPIE -pie"
+				AC_TRY_COMPILE(,,[
+					PIEFLAGS="-fPIE -pie"
+					AC_MSG_RESULT(yes)],
+					AC_MSG_RESULT(no))
 				;;
 		esac
-		AC_MSG_RESULT(yes)],
-		AC_MSG_RESULT(no))
-	CFLAGS="$OLDCFLAGS"
+		CFLAGS="$OLDCFLAGS"
+	fi
 
 	if test "x$with_optim" = x; then
 		# Add useful warning options for tracking down problems...
@@ -171,7 +185,7 @@ if test -n "$GCC"; then
 			# The -z relro option is provided by the Linux linker command to
 			# make relocatable data read-only.
 			if test x$enable_relro = xyes; then
-				RELROFLAGS="-Wl,-z,relro"
+				RELROFLAGS="-Wl,-z,relro,-z,now"
 			fi
 			;;
 	esac
@@ -200,19 +214,6 @@ else
 
 			if test $PICFLAG = 1; then
 				OPTIM="+z $OPTIM"
-			fi
-			;;
-        	IRIX)
-			if test -z "$OPTIM"; then
-				if test "x$with_optim" = x; then
-					OPTIM="-O2"
-				else
-					OPTIM="$with_optim $OPTIM"
-				fi
-			fi
-
-			if test "x$with_optim" = x; then
-				OPTIM="-fullwarn -woff 1183,1209,1349,1506,3201 $OPTIM"
 			fi
 			;;
 		OSF*)
@@ -295,5 +296,5 @@ case $uname in
 esac
 
 dnl
-dnl End of "$Id: cups-compiler.m4 10190 2012-01-20 16:22:58Z mike $".
+dnl End of "$Id: cups-compiler.m4 7871 2008-08-27 21:12:43Z mike $".
 dnl

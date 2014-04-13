@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc-constraint.cxx 8484 2009-04-03 17:35:17Z mike $"
+// "$Id: ppdc-constraint.cxx 1378 2009-04-08 03:17:45Z msweet $"
 //
 //   Contraint class for the CUPS PPD Compiler.
 //
@@ -60,5 +60,5 @@ ppdcConstraint::~ppdcConstraint()
 
 
 //
-// End of "$Id: ppdc-constraint.cxx 8484 2009-04-03 17:35:17Z mike $".
+// End of "$Id: ppdc-constraint.cxx 1378 2009-04-08 03:17:45Z msweet $".
 //

@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc-file.cxx 10335 2012-03-07 05:58:19Z mike $"
+// "$Id: ppdc-file.cxx 3755 2012-03-30 05:59:14Z msweet $"
 //
 //   File class for the CUPS PPD Compiler.
 //
@@ -106,5 +106,5 @@ ppdcFile::peek()
 
 
 //
-// End of "$Id: ppdc-file.cxx 10335 2012-03-07 05:58:19Z mike $".
+// End of "$Id: ppdc-file.cxx 3755 2012-03-30 05:59:14Z msweet $".
 //

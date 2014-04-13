@@ -1,5 +1,5 @@
 //
-// "$Id: ppdc.cxx 10431 2012-04-23 19:19:19Z mike $"
+// "$Id: ppdc.cxx 3794 2012-04-23 22:44:16Z msweet $"
 //
 //   PPD file compiler main entry for the CUPS PPD Compiler.
 //
@@ -464,5 +464,5 @@ usage(void)
 
 
 //
-// End of "$Id: ppdc.cxx 10431 2012-04-23 19:19:19Z mike $".
+// End of "$Id: ppdc.cxx 3794 2012-04-23 22:44:16Z msweet $".
 //
