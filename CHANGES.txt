@@ -1,5 +1,10 @@
-CHANGES.txt - 2.0.0 - 2014-10-01
+CHANGES.txt - 2.0.0 - 2014-10-02
 --------------------------------
+
+CHANGES IN CUPS V2.0.1
+
+	- Fixed a crash in ippAttributeString (<rdar://problem/17903871>)
+
 
 CHANGES IN CUPS V2.0.0
 
