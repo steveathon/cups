@@ -995,6 +995,9 @@ cupsdReadConfiguration(void)
 
       cupsdLogMessage(CUPSD_LOG_NOTICE,
                       "Group and SystemGroup cannot use the same groups.");
+      if (FatalErrors & (CUPSD_FATAL_CONFIG | CUPSD_FATAL_PERMISSIONS))
+        return (0);
+
       cupsdLogMessage(CUPSD_LOG_INFO, "Resetting Group to \"nobody\"...");
 
       group = getgrnam("nobody");
