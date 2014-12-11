@@ -472,7 +472,7 @@ AccessLogLevel actions
 LogLevel $loglevel
 LogTimeFormat usecs
 PreserveJobHistory Yes
-PreserveJobFiles No
+PreserveJobFiles 5m
 <Policy default>
 <Limit All>
 Order Allow,Deny
