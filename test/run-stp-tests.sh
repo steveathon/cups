@@ -697,7 +697,13 @@ done
 #
 
 date=`date "+%Y-%m-%d"`
-strfile=$BASE/cups-str-2.0-$date-$user.html
+
+if test -d $root/.svn; then
+	rev=`svn info . | grep Revision: | awk '{print $2}'`
+	strfile=$BASE/cups-str-2.0-r$rev-$user.html
+else
+	strfile=$BASE/cups-str-2.0-$date-$user.html
+fi
 
 rm -f $strfile
 cat str-header.html >$strfile
@@ -1050,7 +1056,13 @@ echo ""
 
 if test $fail != 0; then
 	echo "$fail tests failed."
-	cp $BASE/log/error_log error_log-$date-$user
+
+	if test -d $root/.svn; then
+		cp $BASE/log/error_log error_log-r$rev-$user
+	else
+		cp $BASE/log/error_log error_log-$date-$user
+	fi
+
 	cp $strfile .
 else
 	echo "All tests were successful."
