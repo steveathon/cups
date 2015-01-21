@@ -90,7 +90,7 @@ unittests:
 #
 
 clean:
-	$(RM) $(TARGETS) $(OBJS)
+	$(RM) $(TARGETS) $(OBJS) ippfind-static
 
 
 #
