@@ -1,4 +1,4 @@
-CHANGES.txt - 2.0.2 - 2014-12-09
+CHANGES.txt - 2.0.2 - 2015-01-27
 --------------------------------
 
 CHANGES IN CUPS V2.0.2
@@ -20,6 +20,8 @@ CHANGES IN CUPS V2.0.2
 	- Fixed an OpenBSD charset transcoding issue.
 	- Fixed USB printing on OpenBSD (STR #4525)
 	- The --without-xinetd configure option did not work (STR #4542)
+	- Backends needing to load OS X kernel extensions did not work
+	  (<rdar://problem/19015679>)
 
 
 CHANGES IN CUPS V2.0.1
