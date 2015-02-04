@@ -5468,6 +5468,13 @@ process_job(_ipp_job_t *job)		/* I - Job */
 
       perror("Unable to start job processing command");
       status = -1;
+
+     /*
+      * Free memory used for environment...
+      */
+
+      while (myenvc > 0)
+	free(myenvp[-- myenvc]);
     }
     else
     {
@@ -5477,7 +5484,6 @@ process_job(_ipp_job_t *job)		/* I - Job */
 
       while (myenvc > 0)
 	free(myenvp[-- myenvc]);
-
      /*
       * Wait for child to complete...
       */
