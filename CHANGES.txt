@@ -4,6 +4,7 @@ CHANGES.txt - 2.0.3 - 2015-02-27
 CHANGES IN CUPS V2.0.3
 
 	- Restored missing generic printer icon file (STR #4587)
+	- Added Russian translation (STR #4577)
 
 
 CHANGES IN CUPS V2.0.2
